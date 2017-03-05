@@ -3,7 +3,7 @@
     https://bitbucket.org/ZeljkoMarjanovic/libssh2-delphi
       Contributors:
         https://bitbucket.org/ZeljkoMarjanovic/libssh2-delphi
-        https://github.com/pult/libssh2_delphi/tree/master
+        https://github.com/pult/libssh2_delphi/
 
 g: libssh2.dll
 ==============
