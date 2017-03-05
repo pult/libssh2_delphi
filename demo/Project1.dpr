@@ -5,6 +5,10 @@ program Project1;
 uses
   Forms,
 
+  {$IFDEF UNICODE}{$IFNDEF FPC}
+  uFxtDelayedHandler in '..\uFxtDelayedHandler.pas',
+  {$ENDIF}{$ENDIF}
+
   libssh2 in '..\libssh2.pas',
   libssh2_publickey in '..\libssh2_publickey.pas',
   libssh2_sftp in '..\libssh2_sftp.pas',
