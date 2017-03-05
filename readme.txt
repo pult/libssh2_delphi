@@ -2,8 +2,10 @@
   Base repository:
     https://bitbucket.org/ZeljkoMarjanovic/libssh2-delphi
       Contributors:
-        https://bitbucket.org/ZeljkoMarjanovic/libssh2-delphi
-        https://github.com/pult/libssh2_delphi/
+        Jeroen Wiert Pluimers
+          https://bitbucket.org/jeroenp/libssh2-delphi
+        Vadim L.V.
+          https://github.com/pult/libssh2_delphi/
 
 g: libssh2.dll
 ==============
