@@ -3,7 +3,8 @@
   *    Base repository:
   *      https://bitbucket.org/ZeljkoMarjanovic/libssh2-delphi
   *        Contributors:
-  *          https://bitbucket.org/ZeljkoMarjanovic/libssh2-delphi
+  *          https://bitbucket.org/jeroenp/libssh2-delphi
+  *          https://bitbucket.org/VadimLV/libssh2_delphi
   *          https://github.com/pult/libssh2_delphi/
   * }
 unit libssh2;
