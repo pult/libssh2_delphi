@@ -1,17 +1,21 @@
 libssh2 SOURCE:
+===============
   https://www.libssh2.org/
   https://www.libssh2.org/docs.html
 
 libssh2 DLL:
+============
   libssh2 (deps):
   http://windows.php.net/downloads/php-sdk/deps/
 
 x86 : http://windows.php.net/downloads/php-sdk/deps/
       libssh2.dll
 
-x64 : http://windows.php.net/downloads/php-sdk/archives/
-      All DLL should be available on the path (note the conflict with another dll-bits).
-      + "deps-7.1-vc14-x64.7z" + VCRUNTIME140.dll - "Visual C++ Redistributable for Visual Studio 2015"
+x64 : !!! Note the conflict with another dll-bits.
+      !!! All DLL should be available on the path.
+      http://windows.php.net/downloads/php-sdk/archives/
+
+      + "deps-7.1-vc14-x64.7z" +requires: VCRUNTIME140.dll ( "Visual C++ Redistributable for Visual Studio 2015" )
           libeay32.dll
           libssh2.dll
           ssleay32.dll
@@ -19,7 +23,7 @@ x64 : http://windows.php.net/downloads/php-sdk/archives/
 
       OR OLD
 
-      + "deps-5.6-vc11-x64.7z" + msvcr110.dll
+      + "deps-5.6-vc11-x64.7z" +requires: msvcr110.dll
           libeay32.dll
           libssh2.dll
           ssleay32.dll
