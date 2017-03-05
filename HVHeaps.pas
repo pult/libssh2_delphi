@@ -1,6 +1,7 @@
 unit HVHeaps;
 //
 // https://github.com/pult/dll_load_delay
+// https://bitbucket.org/VadimLV/dll_load_delay
 // http://hallvards.blogspot.com/2008/03/tdm8-delayloading-of-dlls.html
 //
 // Simple wrapper classes around the Win32 Heap functions.
