@@ -8,10 +8,10 @@
 @if "%xLang%"=="" for /F "tokens=1,2,3,4*" %%i in ('chcp') do @if "%%l"=="1251" set xLang=ru
 @if "%xLang%"=="" set xLang=en
 
-@set make_prj_ver=2017.0305.0948
+@set make_prj_ver=2017.0306.1527
 
 @rem #
-@rem # make_prj Version 2017.0305.0948
+@rem # make_prj Version 2017.0306.1527
 @rem # ================================
 @rem # Description(EN):
 @rem # ================================
@@ -85,6 +85,8 @@
 
 @set project_type=?
 @set project_ext=
+@if "%project_name%"=="" @if "%project%"=="?" goto L_PEXT
+
 @rem .1 variant 1
 @rem @for /F "delims=" %%i in ("%project%") do @set project_ext=%%~xi
 @rem @for /F "delims=." %%i in ("%project_ext%") do @set project_ext=%%i
@@ -96,7 +98,7 @@
 @rem .l
 @rem @echo\ext=%project_ext%>con
 @rem .e error
-@if "%project_ext%"=="" @(
+@if "%project_ext%"=="" (
   @echo\ERROR: Unsupported project file name "%project%"
   @set E=3
   @set errorlevel=%E%
@@ -160,6 +162,7 @@
 @rem .l
 @rem @echo\ext=%project_ext%>con
 @rem @echo\type=%project_type%>con
+:L_PEXT
 
 @rem Clear user Envinronments
 @set dccilOpt=
