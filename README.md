@@ -11,4 +11,4 @@
 
 - **Sample:**
 
-      ![1] (https://github.com/pult/libssh2_delphi/blob/master/img/sample.png?raw=true "Sample")
+![Sample](img/sample.png?raw=true)
