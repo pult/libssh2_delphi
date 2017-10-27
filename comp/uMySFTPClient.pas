@@ -1099,7 +1099,7 @@ begin
           end;
       end;
       Aborted := False;
-      StoredFingerprint := FHashMgr.GetFingerprint(FHost, FPort);
+      Pointer(StoredFingerprint) := FHashMgr.GetFingerprint(FHost, FPort);
       if StoredFingerprint = nil then
         Aborted := HandleFingerprint(fsNew, Fingerprint)
       else if not FHashMgr.CompareFingerprints(Fingerprint, StoredFingerprint) then
@@ -1651,7 +1651,7 @@ begin
 
     if AResume then
     begin
-      Total := Attribs.FileSize - ADest.Position;
+      Total := UInt64(Attribs.FileSize) - UInt64(ADest.Position);
       libssh2_sftp_seek64(FHandle, ADest.Position);
     end
     else
