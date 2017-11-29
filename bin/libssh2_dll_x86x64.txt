@@ -3,30 +3,19 @@ libssh2 SOURCE:
   https://www.libssh2.org/
   https://www.libssh2.org/docs.html
 
-libssh2 DLL:
-============
-  libssh2 (deps):
-  http://windows.php.net/downloads/php-sdk/deps/
+libssh2 DLL (x86):
+==================
 
-x86 : http://windows.php.net/downloads/php-sdk/deps/
-      libssh2.dll
+libssh2-1.8.0-vc11-x86.zip    http://windows.php.net/downloads/php-sdk/deps/vc11/x86/
 
-x64 : !!! Note the conflict with another dll-bits.
-      !!! All DLL should be available on the path.
-      http://windows.php.net/downloads/php-sdk/archives/
+openssl-1.0.2m-vc11-x86.zip   http://windows.php.net/downloads/php-sdk/deps/vc11/x86/
+  or
+openssl-1.0.2m-i386-win32.zip http://indy.fulgan.com/SSL/
 
-      + "deps-7.1-vc14-x64.7z" +requires: VCRUNTIME140.dll ( "Visual C++ Redistributable for Visual Studio 2015" )
-          libeay32.dll
-          libssh2.dll
-          ssleay32.dll
-          zlib1.dll
+libssh2 DLL (x64):
+==================
+libssh2-1.8.0-vc11-x64.zip       http://windows.php.net/downloads/php-sdk/deps/vc11/x64/
 
-      OR OLD
-
-      + "deps-5.6-vc11-x64.7z" +requires: msvcr110.dll
-          libeay32.dll
-          libssh2.dll
-          ssleay32.dll
-          zlib1.dll
-      + "msvcr110.dll.zip"
-          msvcr110.dll
+openssl-1.0.2m-vc11-x64.zip      http://windows.php.net/downloads/php-sdk/deps/vc11/x64/
+  or
+openssl-1.0.2m-x64_86-win64.zip  http://indy.fulgan.com/SSL/
