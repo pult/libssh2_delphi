@@ -1,0 +1,13 @@
+libssh2 SOURCE:
+===============
+  https://www.libssh2.org/
+  https://www.libssh2.org/docs.html
+
+libssh2 DLL:
+============
+
+libssh2-1.8.0-vc11-x86.zip    http://windows.php.net/downloads/php-sdk/deps/vc11/x86/
+
+openssl-1.0.2m-vc11-x86.zip   http://windows.php.net/downloads/php-sdk/deps/vc11/x86/
+  or
+openssl-1.0.2m-i386-win32.zip http://indy.fulgan.com/SSL/
