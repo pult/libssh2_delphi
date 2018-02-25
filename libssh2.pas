@@ -1865,7 +1865,7 @@ function libssh2_channel_open_session(session: PLIBSSH2_SESSION): PLIBSSH2_CHANN
 const
   SSession = 'session';
 begin
-  Result := libssh2_channel_open_ex(session, SSession, Length(SSession) - 1, LIBSSH2_CHANNEL_WINDOW_DEFAULT, LIBSSH2_CHANNEL_PACKET_DEFAULT, nil, 0);
+  Result := libssh2_channel_open_ex(session, SSession, Length(SSession), LIBSSH2_CHANNEL_WINDOW_DEFAULT, LIBSSH2_CHANNEL_PACKET_DEFAULT, nil, 0);
 end;
 
 function libssh2_channel_direct_tcpip(session: PLIBSSH2_SESSION; const host: PAnsiChar; port: Integer): PLIBSSH2_CHANNEL;
