@@ -1903,17 +1903,17 @@ end;
 
 function libssh2_channel_shell(channel: PLIBSSH2_CHANNEL): Integer;
 begin
-  Result := libssh2_channel_process_startup(channel, 'shell', Length('shell') - 1, nil, 0);
+  Result := libssh2_channel_process_startup(channel, 'shell', Length('shell'), nil, 0);
 end;
 
 function libssh2_channel_exec(channel: PLIBSSH2_CHANNEL; const command: PAnsiChar): Integer;
 begin
-  Result := libssh2_channel_process_startup(channel, 'exec', Length('exec') - 1, command, Length(command));
+  Result := libssh2_channel_process_startup(channel, 'exec', Length('exec'), command, Length(command));
 end;
 
 function libssh2_channel_subsystem(channel: PLIBSSH2_CHANNEL; const subsystem: PAnsiChar): Integer;
 begin
-  Result := libssh2_channel_process_startup(channel, 'subsystem', Length('subsystem') - 1, subsystem, Length(subsystem));
+  Result := libssh2_channel_process_startup(channel, 'subsystem', Length('subsystem'), subsystem, Length(subsystem));
 end;
 
 function libssh2_channel_read(channel: PLIBSSH2_CHANNEL; buf: PAnsiChar; buflen: SIZE_T): Integer;
