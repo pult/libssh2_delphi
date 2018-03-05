@@ -4,10 +4,13 @@
       - [Zeljko Marjanovic] (https://bitbucket.org/ZeljkoMarjanovic/libssh2-delphi)
 
 - **Contributors:**
-      -   [Jeroen Wiert Pluimers] (https://bitbucket.org/jeroenp/libssh2-delphi)
-      -   [Vadim L.V.] (https://bitbucket.org/VadimLV/libssh2_delphi)
-      -   [pult] (https://github.com/pult/libssh2_delphi/)
 
+      -   [Jeroen Wiert Pluimers] (https://bitbucket.org/jeroenp/libssh2-delphi)
+      
+      -   [Vadim L.V. pult@ukr.net] (https://github.com/pult/libssh2_delphi/)
+      
+      -   [Vadim L.V. pult@ukr.net] (https://bitbucket.org/VadimLV/libssh2_delphi)
+      
 
 - **Sample:**
 
