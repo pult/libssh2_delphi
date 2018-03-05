@@ -4,7 +4,7 @@
       Contributors:
         Jeroen Wiert Pluimers
           https://bitbucket.org/jeroenp/libssh2-delphi
-        Vadim L.V.
+        Vadim L.V. ( pult@ukr.net )
           https://github.com/pult/libssh2_delphi/
 
 g: libssh2.dll
