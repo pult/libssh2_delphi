@@ -30,7 +30,7 @@ uses
   Classes, SysUtils, WinSock, libssh2, libssh2_sftp;
 
 const
-  AF_INET6 = 32;
+  AF_INET6 = 23;
   SFTPCLIENT_VERSION = '0.5';
 
 type
@@ -1295,7 +1295,7 @@ begin
     RaiseSSHError('Invalid winsock version!');
     Exit;
   end;
-  Result := socket(Ord(AF_INET), SOCK_STREAM, IPPROTO_TCP);
+  Result := socket(Ord(FIPVersion), SOCK_STREAM, IPPROTO_TCP);
   if Result = INVALID_SOCKET then
   begin
     RaiseSSHError(SysErrorMessage(WSAGetLastError));
