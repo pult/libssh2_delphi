@@ -1916,7 +1916,7 @@ begin
       end;
     until (N <= 0) or FCanceled;
   finally
-    FreeMem(Buf);
+    FreeMem(StartBuf);
     libssh2_sftp_close(FHandle);
   end;
 end;
