@@ -1039,7 +1039,8 @@ label auth;
 
 var
   Sock: Integer;
-  Fingerprint, StoredFingerprint: array of Byte;
+  Fingerprint{, StoredFingerprint}: array of Byte;
+  StoredFingerprint: Pointer;
   Abstract: TAbstractData;
   Aborted: Boolean;
   UserAuthList: PAnsiChar;
@@ -1099,7 +1100,7 @@ begin
           end;
       end;
       Aborted := False;
-      Pointer(StoredFingerprint) := FHashMgr.GetFingerprint(FHost, FPort);
+      {Pointer(StoredFingerprint)}StoredFingerprint := FHashMgr.GetFingerprint(FHost, FPort);
       if StoredFingerprint = nil then
         Aborted := HandleFingerprint(fsNew, Fingerprint)
       else if not FHashMgr.CompareFingerprints(Fingerprint, StoredFingerprint) then
