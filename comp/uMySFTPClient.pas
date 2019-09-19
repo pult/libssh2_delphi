@@ -985,12 +985,23 @@ type
   end;
 
   function UserAuthPKey: Boolean;
+  {$REGION 'History'}
+  //  19-Sep-2019 - Failed While connecting with a Private Key only
+  //                missing paramters must be Nil not EmptyStr
+  {$ENDREGION}
   var
     Returned: Integer;
+    LPubKey, LPrivKey, LPass:  PAnsiChar;
   begin
+    if (FPubKeyPath = EmptyStr) then LPubKey := nil
+    else LPubKey := PAnsiChar(AnsiString(FPubKeyPath));
+    if (FPrivKeyPath = EmptyStr) then LPrivKey := nil
+    else LPrivKey := PAnsiChar(AnsiString(FPrivKeyPath));
+    if (FPrivKeyPass = EmptyStr) then LPass := nil
+    else LPass := PAnsiChar(AnsiString(FPrivKeyPass));
+
     Returned := libssh2_userauth_publickey_fromfile(FSession, PAnsiChar(AnsiString(FUserName)),
-      PAnsiChar(AnsiString(FPubKeyPath)), PAnsiChar(AnsiString(FPrivKeyPath)),
-      PAnsiChar(AnsiString(FPrivKeyPass)));
+      LPubKey, LPrivKey, LPass);
     Result := Returned = 0;
   end;
 
