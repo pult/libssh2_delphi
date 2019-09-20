@@ -985,23 +985,37 @@ type
   end;
 
   function UserAuthPKey: Boolean;
-  {$REGION 'History'}
+  //{$REGION 'History'}
   //  19-Sep-2019 - Failed While connecting with a Private Key only
   //                missing paramters must be Nil not EmptyStr
-  {$ENDREGION}
+  //{$ENDREGION}
   var
     Returned: Integer;
-    LPubKey, LPrivKey, LPass:  PAnsiChar;
+    sUserName, sPubKeyPath, sPrivKeyPath, sPrivKeyPass: AnsiString;
+    pUserName, pPubKeyPath, pPrivKeyPath, pPrivKeyPass: PAnsiChar;
   begin
-    if (FPubKeyPath = EmptyStr) then LPubKey := nil
-    else LPubKey := PAnsiChar(AnsiString(FPubKeyPath));
-    if (FPrivKeyPath = EmptyStr) then LPrivKey := nil
-    else LPrivKey := PAnsiChar(AnsiString(FPrivKeyPath));
-    if (FPrivKeyPass = EmptyStr) then LPass := nil
-    else LPass := PAnsiChar(AnsiString(FPrivKeyPass));
-
-    Returned := libssh2_userauth_publickey_fromfile(FSession, PAnsiChar(AnsiString(FUserName)),
-      LPubKey, LPrivKey, LPass);
+    //?if (FUserName = EmptyStr) then pUserName := nil else
+    begin
+      sUserName := AnsiString(sUserName);
+      pUserName := PAnsiChar(sPubKeyPath);
+    end;
+    if (FPubKeyPath = EmptyStr) then pPubKeyPath := nil else
+    begin
+      sPubKeyPath := AnsiString(FPubKeyPath);
+      pPubKeyPath := PAnsiChar(sPubKeyPath);
+    end;
+    if (FPrivKeyPath = EmptyStr) then pPrivKeyPath := nil else
+    begin
+      sPrivKeyPath := AnsiString(FPrivKeyPath);
+      pPrivKeyPath := PAnsiChar(sPrivKeyPath);
+    end;
+    if (FPrivKeyPass = EmptyStr) then pPrivKeyPass := nil else
+    begin
+      sPrivKeyPass := AnsiString(FPrivKeyPass);
+      pPrivKeyPass := PAnsiChar(sPrivKeyPass);
+    end;
+    Returned := libssh2_userauth_publickey_fromfile(FSession,
+      pUserName, pPubKeyPath, pPrivKeyPath, pPrivKeyPass);
     Result := Returned = 0;
   end;
 
