@@ -461,7 +461,6 @@ var libssh2_banner_set: function(session: PLIBSSH2_SESSION;
                             const banner: PAnsiChar): Integer; cdecl;
 {$ifend}
 
-
 {$if not declared(uHVDll)}
 function libssh2_session_startup(session: PLIBSSH2_SESSION;
                                  sock: Integer): Integer; cdecl;
@@ -1368,7 +1367,6 @@ var libssh2_knownhost_readline: function(hosts: PLIBSSH2_KNOWNHOSTS;
                            const line: PAnsiChar; len: size_t; _type: Integer): Integer; cdecl;
 {$ifend}
 
-
 {/*
  * libssh2_knownhost_readfile
  *
@@ -1653,6 +1651,11 @@ var libssh2_trace_sethandler: function(session: PLIBSSH2_SESSION;
 implementation
 
 {$if not declared(uHVDll)}
+
+{$ifdef allow_delayed}
+  {$WARN SYMBOL_PLATFORM OFF} // W002
+{$endif}
+
 function libssh2_init; external libssh2_name{$ifdef allow_delayed} delayed{$endif};
 procedure libssh2_exit; external libssh2_name{$ifdef allow_delayed} delayed{$endif};
 function libssh2_session_init_ex; external libssh2_name{$ifdef allow_delayed} delayed{$endif};
