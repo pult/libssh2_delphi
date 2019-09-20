@@ -506,6 +506,11 @@ function  libssh2_sftp_realpath(sftp: PLIBSSH2_SFTP;
 implementation
 
 {$if not declared(uHVDll)}
+
+{$ifdef allow_delayed}
+{$WARN SYMBOL_PLATFORM OFF} // W002
+{$endif}
+
 function libssh2_sftp_init; external libssh2_name{$ifdef allow_delayed} delayed{$endif};
 function libssh2_sftp_shutdown; external libssh2_name{$ifdef allow_delayed} delayed{$endif};
 function libssh2_sftp_last_error; external libssh2_name{$ifdef allow_delayed} delayed{$endif};
