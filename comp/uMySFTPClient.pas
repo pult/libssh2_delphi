@@ -9,8 +9,8 @@
   *      https://bitbucket.org/ZeljkoMarjanovic/libssh2-delphi
   *        Contributors:
   *          https://bitbucket.org/jeroenp/libssh2-delphi
-  *          https://bitbucket.org/VadimLV/libssh2_delphi
   *          https://github.com/pult/libssh2_delphi/
+  *          https://bitbucket.org/VadimLV/libssh2_delphi
   * }
 unit uMySFTPClient;
 
@@ -167,6 +167,7 @@ type
 
   TSSH2Client = class(TComponent)
   private
+    FDebugMode: Boolean;
     FPrivKeyPass: string;
     FPrivKeyPath: TFileName;
     FAuthModes: TAuthModes;
@@ -181,9 +182,7 @@ type
     FCanceled: Boolean;
     FLastErrStr: string;
     FKeepAlive: Boolean;
-    {+}
     FTimeOut: Integer; // keepalive timeout interval in seconds
-    {+.}
     FSockBufLen: Integer;
     FHashMgr: IHashManager;
     FSocket: Integer;
@@ -218,15 +217,14 @@ type
     procedure Cancel(ADisconnect: Boolean = True); virtual;
     function GetSessionMethodsStr: string;
 
+    property DebugMode: Boolean read FDebugMode write FDebugMode default False;
     property Host: string read FHost write FHost;
     property Port: Word read FPort write FPort default 22;
     property IPVersion: TIPVersion read FIPVersion write FIPVersion;
     property KeepAlive: Boolean read FKeepAlive write FKeepAlive;
-    {+}
     property TimeOut: Integer read FTimeOut write FTimeOut;
-    {+.}
     property SockSndRcvBufLen: Integer read FSockBufLen write FSockBufLen;
-    property AuthModes: TAuthModes read FAuthModes write SetAuthModes default[amTryAll];
+    property AuthModes: TAuthModes read FAuthModes write SetAuthModes default [amTryAll];
     property UserName: string read FUserName write FUserName;
     property Password: string read FPassword write FPassword;
     property PublicKeyPath: TFileName read FPubKeyPath write FPubKeyPath;
@@ -323,7 +321,21 @@ function DecodeStr(const S: AnsiString; ACodePage: Word = CP_UTF8): WideString;
 implementation
 
 uses
-  DateUtils, Forms, WideStrUtils;
+  DateUtils, Forms, StrUtils, WideStrUtils;
+
+procedure dbg(const S: string); inline;
+begin
+  {$IFDEF MSWINDOWS}
+  if Length(S) > 0 then OutputDebugString(PChar('libssh2:> ' + S));
+  {$ENDIF}
+end;
+
+procedure dbgw(const S: WideString); inline;
+begin
+  {$IFDEF MSWINDOWS}
+  if Length(S) > 0 then OutputDebugStringW(PWideChar('libssh2:> ' + S));
+  {$ENDIF}
+end;
 
 var
   GSSH2Init: Integer;
@@ -350,6 +362,11 @@ freeaddrinfo : procedure(ai: PAddrInfo); stdcall;
     (Proc: @@freeaddrinfo; Name: 'freeaddrinfo')
   );
 {$else !declared(uHVDll)}
+
+{$ifdef allow_delayed}
+  {$WARN SYMBOL_PLATFORM OFF} // W002
+{$endif}
+
 function connect2(S: TSocket; name: Pointer; namelen: Integer): Integer; stdcall;
   external dll_ws2_32_name name 'connect'{$ifdef allow_delayed} delayed{$endif};
 
@@ -889,6 +906,27 @@ type
   TAbstractData = record
     SelfPtr: Pointer;
     Extra: Pointer;
+    sPassword: AnsiString;
+  end;
+
+var
+  ADebugMode: Boolean;
+  R: Integer; // last call SSH state
+  sError, sErrorFirst, sException: string; // cached last SSH Error
+
+  procedure log(const S: string); inline;
+  begin
+    //--if ADebugMode then
+    dbg('connect: ' + S); // optional!
+  end;
+
+  procedure CacheLastSSHError(R: Integer);
+  begin
+    if R <> 0 then
+    begin
+      sError := GetLastSSHError(R);
+      if sErrorFirst = '' then sErrorFirst := sError;
+    end;
   end;
 
   function HandleFingerprint(const AState: TFingerprintState; const F: Pointer): Boolean;
@@ -897,14 +935,26 @@ type
   begin
     Result := False;
     HashAction := chaIgnore;
+    if ADebugMode then log('DoOnFingerprint:'); //@dbg
     DoOnFingerprint(AState, HashAction);
+    if ADebugMode then log('DoOnFingerprint.'); //@dbg
     case HashAction of
       chaIgnore:
-        ;
+        begin
+          if ADebugMode then log('HashAction: chaIgnore'); //@dbg
+        end;
       chaCancel:
-        Result := True;
+        begin
+          if ADebugMode then log('HashAction: chaCancel'); //@dbg
+          Result := True;
+        end;
       chaSave:
-        FHashMgr.StoreFingerprint(FHost, FPort, F);
+        begin
+          if ADebugMode then log('HashAction: chaSave'); //@dbg
+          if ADebugMode then log('HashMgr.StoreFingerprint:'); //@dbg
+          FHashMgr.StoreFingerprint(FHost, FPort, F);
+          if ADebugMode then log('HashMgr.StoreFingerprint.'); //@dbg
+        end;
     end;
   end;
 
@@ -916,34 +966,71 @@ type
     S := string(AList);
     if amTryAll in FAuthModes then
     begin
-      Result := [amTryAll];
+      Result := [amTryAll]; // foreach all auth methods
       Exit;
     end;
+
     Modes := [];
     if Pos('password', S) > 0 then
-      Modes := Modes + [amPassword];
+    begin
+      // when "FAuthModes == []" use only server allowed mode else server allowed and client supported!
+      if (FAuthModes = []) or (amPassword in FAuthModes) then
+        Modes := Modes + [amPassword];
+    end;
+
     if Pos('publickey', S) > 0 then
     begin
-      if amPublicKeyViaAgent in FAuthModes then
-        Modes := Modes + [amPublicKeyViaAgent];
-      if amPublicKey in FAuthModes then
+      if (FAuthModes = []) or (amPublicKey in FAuthModes) then
         Modes := Modes + [amPublicKey];
+      //?if Pos('agent', S) > 0 then
+      begin
+        if (FAuthModes = []) or (amPublicKeyViaAgent in FAuthModes) then
+          Modes := Modes + [amPublicKeyViaAgent];
+      end;
     end;
     if Pos('keyboard-interactive', S) > 0 then
-      Modes := Modes + [amKeyboardInteractive];
+    begin
+      if (FAuthModes = []) or (amKeyboardInteractive in FAuthModes) then
+        Modes := Modes + [amKeyboardInteractive];
+    end;
 
-    Result := FAuthModes * Modes;
+    Result := Modes;
+
     if Result = [] then
       RaiseSSHError('Server does not support requested auth mode(s)');
   end;
 
-  function UserAuthPassword: Boolean;
+  function UserAuthPassword(): Boolean;
   var
-    Returned: Integer;
+    sUserName, sPassword: AnsiString;
+    pUserName, pPassword: PAnsiChar;
   begin
-    Returned := libssh2_userauth_password(FSession, PAnsiChar(AnsiString(FUserName)),
-      PAnsiChar(AnsiString(FPassword)));
-    Result := Returned = 0;
+    //-if (FUserName = EmptyStr) then pUserName := nil else // !Not necessarily
+    begin
+      sUserName := AnsiString(FUserName);
+      pUserName := PAnsiChar(sUserName);
+    end;
+    //-if (FPassword = EmptyStr) then pPassword := nil else // !Not necessarily
+    begin
+      sPassword := AnsiString(FPassword);
+      pPassword := PAnsiChar(sPassword);
+    end;
+    if ADebugMode then log('libssh2_userauth_password:'); //@dbg
+    try
+      R := libssh2_userauth_password(FSession, pUserName, pPassword);
+      if ADebugMode then log('libssh2_userauth_password. R: ' + IntToStr(R)); //@dbg
+      Result := R = 0;
+      if not Result then CacheLastSSHError(R);
+      if (not Result) and ADebugMode then log('Failed auth: ' + sError); //@dbg
+    except
+      on e: Exception do
+      begin
+        //if FDebugMode then
+        dbg('exception: ' + e.Message);
+        if sException = '' then sException := e.Message;
+        Result := False;
+      end;
+    end;
   end;
 
   procedure KbdInteractiveCallback(const Name: PAnsiChar; name_len: Integer;
@@ -952,245 +1039,552 @@ type
     var responses: LIBSSH2_USERAUTH_KBDINT_RESPONSE;
       _abstract: Pointer); cdecl;
   var
-    Pass: string;
+    sPassword: string;
     Data: PAbstractData;
     SSH2Client: TSSH2Client;
   begin
+    if ADebugMode then log('KbdInteractiveCallback: #' + IntToStr(num_prompts)); //@dbg
     if num_prompts = 1 then
-    begin
+    try
       // zato sto je abstract->void**
+      if (_abstract = nil) then Exit;
       Data := PAbstractData(Pointer(_abstract)^);
+      if (Data = nil) then Exit;
 
       SSH2Client := TSSH2Client(Data.SelfPtr);
-      Pass := SSH2Client.Password;
+      sPassword := SSH2Client.Password;
       // TODO -o##jpluimers -cGeneral : if Password is assigned, then firs try that at least once before asking
       if Assigned(SSH2Client.FOnKeybInt) then
-        SSH2Client.FOnKeybInt(Data.SelfPtr, Pass);
-
-      if (Pass <> '') and (Pos('password', LowerCase(string(prompts.Text))) > 0) then
       begin
-        responses.text := PAnsiChar(AnsiString(Pass));
-        responses.length := Length(Pass);
+        if ADebugMode then log('SSH2Client.OnKeybInt:'); //@dbg
+        SSH2Client.FOnKeybInt(Data.SelfPtr, sPassword);
+        if ADebugMode then log('SSH2Client.OnKeybInt.'); //@dbg
+      end;
+
+      if (sPassword <> '') and (Pos('password', LowerCase(string(prompts.Text))) > 0) then
+      begin
+        Data.sPassword := AnsiString(sPassword);
+        responses.text := PAnsiChar(Data.sPassword);
+        responses.length := Length(Data.sPassword);
+      end;
+    except
+      on e: Exception do
+      begin
+        //if FDebugMode then
+        dbg('exception: ' + e.Message);
+      end;
+    end; // if num_prompts = 1 then
+    if ADebugMode then log('KbdInteractiveCallback.'); //@dbg
+  end;
+
+  function UserAuthKeyboardInteractive(): Boolean;
+  var
+    sUserName: AnsiString;
+    pUserName: PAnsiChar;
+  begin
+    //-if (FUserName = EmptyStr) then pUserName := nil else // !Not necessarily
+    begin
+      sUserName := AnsiString(FUserName);
+      pUserName := PAnsiChar(sUserName);
+    end;
+    if ADebugMode then log('libssh2_userauth_keyboard_interactive:'); //@dbg
+    try
+      R := libssh2_userauth_keyboard_interactive(FSession, pUserName, @KbdInteractiveCallback);
+      if ADebugMode then log('libssh2_userauth_keyboard_interactive. R: ' + IntToStr(R)); //@dbg
+      Result := R = 0;
+      if not Result then CacheLastSSHError(R);
+      if (not Result) and ADebugMode then log('Failed auth: ' + sError); //@dbg
+    except
+      on e: Exception do
+      begin
+        //if FDebugMode then
+        dbg('exception: ' + e.Message);
+        if sException = '' then sException := e.Message;
+        Result := False;
       end;
     end;
   end;
 
-  function UserAuthKeyboardInteractive: Boolean;
-  var
-    Returned: Integer;
-  begin
-    Returned := libssh2_userauth_keyboard_interactive(FSession, PAnsiChar(AnsiString(FUserName)),
-      @KbdInteractiveCallback);
-    Result := Returned = 0;
-  end;
-
-  function UserAuthPKey: Boolean;
+  function UserAuthPKey(Forcibly: Boolean = False): Boolean;
   //{$REGION 'History'}
   //  19-Sep-2019 - Failed While connecting with a Private Key only
   //                missing paramters must be Nil not EmptyStr
   //{$ENDREGION}
   var
-    Returned: Integer;
     sUserName, sPubKeyPath, sPrivKeyPath, sPrivKeyPass: AnsiString;
     pUserName, pPubKeyPath, pPrivKeyPath, pPrivKeyPass: PAnsiChar;
   begin
-    //?if (FUserName = EmptyStr) then pUserName := nil else
+    if (not Forcibly) and (FPubKeyPath = EmptyStr) and (FPrivKeyPath = EmptyStr) then
     begin
-      sUserName := AnsiString(sUserName);
-      pUserName := PAnsiChar(sPubKeyPath);
+      if ADebugMode then log('Failed defined any key file!');
+      if sError = '' then
+        sError := 'Failed defined any key file';
+      Result := False;
+      Exit;
     end;
-    if (FPubKeyPath = EmptyStr) then pPubKeyPath := nil else
+    //-if (FUserName = EmptyStr) then pUserName := nil else // !Not necessarily
+    begin
+      sUserName := AnsiString(FUserName);
+      pUserName := PAnsiChar(sUserName);
+    end;
+    if (FPubKeyPath = EmptyStr) then pPubKeyPath := nil else //!!! PubKeyPath allowed nil
     begin
       sPubKeyPath := AnsiString(FPubKeyPath);
       pPubKeyPath := PAnsiChar(sPubKeyPath);
     end;
-    if (FPrivKeyPath = EmptyStr) then pPrivKeyPath := nil else
+    //--if (FPrivKeyPath = EmptyStr) then pPrivKeyPath := nil else // AV when == nil
     begin
       sPrivKeyPath := AnsiString(FPrivKeyPath);
       pPrivKeyPath := PAnsiChar(sPrivKeyPath);
     end;
-    if (FPrivKeyPass = EmptyStr) then pPrivKeyPass := nil else
+    if (FPrivKeyPass = EmptyStr) then pPrivKeyPass := nil else // !Not necessarily
     begin
       sPrivKeyPass := AnsiString(FPrivKeyPass);
       pPrivKeyPass := PAnsiChar(sPrivKeyPass);
     end;
-    Returned := libssh2_userauth_publickey_fromfile(FSession,
-      pUserName, pPubKeyPath, pPrivKeyPath, pPrivKeyPass);
-    Result := Returned = 0;
-  end;
-
-  function UserAuthPKeyViaAgent: Boolean;
-  var
-    Agent: PLIBSSH2_AGENT;
-    Identity, PrevIdentity: PLIBSSH2_AGENT_PUBLICKEY;
-  begin
-    Result := False;
-    Agent := libssh2_agent_init(FSession);
-    if Agent <> nil then
-    begin
-      try
-        if libssh2_agent_connect(Agent) = 0 then
-        begin
-          if libssh2_agent_list_identities(Agent) = 0 then
-          begin
-            PrevIdentity := nil;
-            while True do
-            begin
-              if libssh2_agent_get_identity(Agent, Identity, PrevIdentity) <> 0 then
-                break;
-              if libssh2_agent_userauth(Agent, PAnsiChar(AnsiString(FUserName)), Identity) = 0 then
-              begin
-                Result := True;
-                break;
-              end;
-              PrevIdentity := Identity;
-            end;
-          end;
-          libssh2_agent_disconnect(Agent);
-        end;
-      finally
-        libssh2_agent_free(Agent);
+    if ADebugMode then log('libssh2_userauth_publickey_fromfile:'); //@dbg
+    try
+      R := libssh2_userauth_publickey_fromfile_ex(FSession,
+        pUserName, Length(sUserName), pPubKeyPath, pPrivKeyPath, pPrivKeyPass);
+      if ADebugMode then log('libssh2_userauth_publickey_fromfile. R: ' + IntToStr(R)); //@dbg
+      Result := R = 0;
+      if not Result then CacheLastSSHError(R);
+      if (not Result) and ADebugMode then log('Failed auth: ' + sError); //@dbg
+    except
+      on e: Exception do
+      begin
+        //if FDebugMode then
+        dbg('exception: ' + e.Message);
+        if sException = '' then sException := e.Message;
+        Result := False;
       end;
     end;
   end;
 
-  function UserAuthTryAll: Boolean;
+  function UserAuthPKeyViaAgent(): Boolean;
+  var
+    Agent: PLIBSSH2_AGENT;
+    Identity, PrevIdentity: PLIBSSH2_AGENT_PUBLICKEY;
+    sUserName: AnsiString;
+    pUserName: PAnsiChar;
   begin
-    Result := UserAuthPassword or UserAuthKeyboardInteractive or UserAuthPKey or
-      UserAuthPKeyViaAgent;
+    Result := False;
+    if ADebugMode then log('libssh2_agent_init:'); //@dbg
+    try
+      Agent := libssh2_agent_init(FSession);
+      if ADebugMode then log('libssh2_agent_init.'); //@dbg
+      if Agent <> nil then
+      begin
+        try
+          if ADebugMode then log('libssh2_agent_connect:'); //@dbg
+          R := libssh2_agent_connect(Agent);
+          if ADebugMode then log('libssh2_agent_connect. R: ' + IntToStr(R)); //@dbg
+          if R <> 0 then CacheLastSSHError(R);
+          if (R <> 0) and ADebugMode then log('Failed agent connect: ' + sError); //@dbg
+          if R = 0 then
+          begin
+            if ADebugMode then log('libssh2_agent_list_identities:'); //@dbg
+            R := libssh2_agent_list_identities(Agent);
+            if ADebugMode then log('libssh2_agent_list_identities. R: ' + IntToStr(R)); //@dbg
+            if R <> 0 then CacheLastSSHError(R);
+            if (R <> 0) and ADebugMode then log('Failed agent identities: ' + sError); //@dbg
+            if R = 0 then
+            begin
+              PrevIdentity := nil;
+              while True do
+              begin
+                if ADebugMode then log('libssh2_agent_get_identity:'); //@dbg
+                R := libssh2_agent_get_identity(Agent, Identity, PrevIdentity);
+                if ADebugMode then log('libssh2_agent_get_identity. R: ' + IntToStr(R)); //@dbg
+                if R <> 0 then CacheLastSSHError(R);
+                if (R <> 0) and ADebugMode then log('Failed agent identity: ' + sError); //@dbg
+                if R <> 0 then
+                  break;
+                if ADebugMode then log('libssh2_agent_userauth:'); //@dbg
+                //if (FUserName = EmptyStr) then pUserName := nil else // ?!Not necessarily
+                begin
+                  sUserName := AnsiString(FUserName);
+                  pUserName := PAnsiChar(sUserName);
+                end;
+                R := libssh2_agent_userauth(Agent, pUserName, Identity);
+                if ADebugMode then log('libssh2_agent_userauth. R: ' + IntToStr(R)); //@dbg
+                if R <> 0 then CacheLastSSHError(R);
+                if (R <> 0) and ADebugMode then log('Failed agent userauth: ' + sError); //@dbg
+                if R = 0 then
+                begin
+                  Result := True;
+                  break;
+                end;
+                PrevIdentity := Identity;
+              end;
+            end;
+            if ADebugMode then log('libssh2_agent_disconnect:'); //@dbg
+            libssh2_agent_disconnect(Agent);
+            if ADebugMode then log('libssh2_agent_disconnect.'); //@dbg
+          end;
+        finally
+          if ADebugMode then log('libssh2_agent_free:'); //@dbg
+          libssh2_agent_free(Agent);
+          if ADebugMode then log('libssh2_agent_free.'); //@dbg
+        end;
+      end;
+    except
+      on e: Exception do
+      begin
+        //if FDebugMode then
+        dbg('exception: ' + e.Message);
+        if sException = '' then sException := e.Message;
+      end;
+    end;
   end;
 
-label auth;
+  function UserAuthTryAll(): Boolean;
+  var
+    IsKeyFiles, IsPassword: Boolean;
+  begin
+    IsKeyFiles := (FPubKeyPath <> '') or (FPrivKeyPath <> '');
+
+    if IsKeyFiles then
+    begin
+      Result := UserAuthPKey();
+      if Result then Exit;
+      Result := UserAuthPKeyViaAgent();
+      if Result then Exit;
+    end;
+
+    IsPassword := FPassword <> '';
+    if IsPassword then
+    begin
+      Result := UserAuthPassword();
+      if Result then Exit;
+    end;
+
+    Result := UserAuthKeyboardInteractive();
+    if Result then Exit;
+    if not (IsKeyFiles or IsPassword) then
+    begin
+      sErrorFirst := '';
+      sException := '';
+    end;
+
+    if not IsKeyFiles then
+    begin
+      Result := UserAuthPKey({Forcibly:}True);
+      if Result then Exit;
+      Result := UserAuthPKeyViaAgent();
+      if Result then Exit;
+      if not IsPassword then
+      begin
+        sErrorFirst := '';
+        sException := '';
+      end;
+    end;
+
+    if not IsPassword then
+      Result := UserAuthPassword();
+
+    //Result := UserAuthPassword()
+    //  or UserAuthKeyboardInteractive()
+    //  or UserAuthPKey()
+    //  or UserAuthPKeyViaAgent();
+  end;
 
 var
-  Sock: Integer;
+  Sock, iRepeat, iRepeatLimit: Integer;
   Fingerprint{, StoredFingerprint}: array of Byte;
   StoredFingerprint: Pointer;
   Abstract: TAbstractData;
   Aborted: Boolean;
   UserAuthList: PAnsiChar;
   AuthMode: TAuthModes;
-  AuthOK: Boolean;
-  B: Boolean;
+  OK, AuthOK: Boolean;
   Prefs: AnsiString;
+  HashMode: THashMode;
+label
+  L_AUTH_REPEAT;
 begin
   if Connected then
     Exit;
+  ADebugMode := fDebugMode;
+  if ADebugMode then log('Start:'); // @dbg
+
+  R := 0;
   FCanceled := False;
+  if ADebugMode then log('CreateSocket:'); // @dbg
   Sock := CreateSocket;
+  if ADebugMode then log('CreateSocket.'); // @dbg
   if Sock = INVALID_SOCKET then
     Exit;
-  if not ConnectSocket(Sock) then
+  if ADebugMode then log('ConnectSocket:'); // @dbg
+  OK := ConnectSocket(Sock);
+  if ADebugMode then log('ConnectSocket.'); // @dbg
+  if not OK then
     RaiseSSHError(FLastErrStr);
   FSocket := Sock;
   if FSession <> nil then
+  begin
+    if ADebugMode then log('libssh2_session_free:'); // @dbg
     libssh2_session_free(FSession);
+    FSession := nil;
+    if ADebugMode then log('libssh2_session_free.'); // @dbg
+  end;
 
   Abstract.SelfPtr := Self;
   Abstract.Extra := nil;
+  if ADebugMode then log('libssh2_session_init_ex:'); // @dbg
   FSession := libssh2_session_init_ex(nil, nil, nil, @Abstract);
+  if ADebugMode then log('libssh2_session_init_ex.'); // @dbg
   if FSession = nil then
     RaiseSSHError;
 
+  {+} // https://www.libssh2.org/examples/sftp.html
+  // Since we have set non-blocking, tell libssh2 we are blocking
+  //if ADebugMode then log('libssh2_session_set_blocking:'); //@dbg
+  //???libssh2_session_set_blocking(FSession, 1);
+  //if ADebugMode then log('libssh2_session_set_blocking.'); //@dbg
+
+  // ... start it up. This will trade welcome banners, exchange keys,
+  // and setup crypto, compression, and MAC layers
+  //if ADebugMode then log('libssh2_session_handshake:'); //@dbg
+  //???R := libssh2_session_handshake(FSession, FSocket);
+  //if ADebugMode then log('libssh2_session_handshake.'); //@dbg
+  //if R <> 0 then
+  //begin
+  //  Disconnect;
+  //  RaiseSSHError('Failure establishing SSH session: ' + IntToStr(R));
+  //end;
+  {+.}
+
+  if ADebugMode then log('libssh2_banner_set:'); // @dbg
   libssh2_banner_set(FSession, PAnsiChar(MyEncode(FClientBanner)));
+  if ADebugMode then log('libssh2_banner_set.'); // @dbg
 
   if FCompression then
   begin
+    if ADebugMode then log('libssh2_session_flag: LIBSSH2_FLAG_COMPRESS'); // @dbg
     libssh2_session_flag(FSession, LIBSSH2_FLAG_COMPRESS, 1);
+    if ADebugMode then log('libssh2_session_flag.'); // @dbg
 
     Prefs := 'zlib,none';
 
-    if libssh2_session_method_pref(FSession, LIBSSH2_METHOD_COMP_CS, PAnsiChar(AnsiString(Prefs))) <> 0 then
-         OutputDebugStringW(PWChar(WideString('Error setting comp_cs: ' + GetLastSSHError)));
+    if ADebugMode then log('libssh2_session_method_pref: COMP_CS'); // @dbg
+    R := libssh2_session_method_pref(FSession, LIBSSH2_METHOD_COMP_CS, PAnsiChar(AnsiString(Prefs)));
+    if ADebugMode then log('libssh2_session_method_pref.'); // @dbg
+    if R <> 0 then CacheLastSSHError(R);
+    if R <> 0 then
+      if ADebugMode then log('Error setting comp_cs: ' + sError);
 
-    if libssh2_session_method_pref(FSession, LIBSSH2_METHOD_COMP_SC, PAnsiChar(AnsiString(Prefs))) <> 0 then
-      OutputDebugStringW(PWChar(WideString('Error setting comp_sc: ' + GetLastSSHError)));
-
+    if ADebugMode then log('libssh2_session_method_pref: COMP_SC'); // @dbg
+    R := libssh2_session_method_pref(FSession, LIBSSH2_METHOD_COMP_SC, PAnsiChar(AnsiString(Prefs)));
+    if ADebugMode then log('libssh2_session_method_pref.'); // @dbg
+    if R <> 0 then CacheLastSSHError(R);
+    if (R <> 0) and ADebugMode then log('Error setting comp_sc: ' + sError);
   end;
 
-  if libssh2_session_startup(FSession, FSocket) = 0 then
+  if ADebugMode then log('libssh2_session_startup:'); // @dbg
+  R := libssh2_session_startup(FSession, FSocket);
+  if ADebugMode then log('libssh2_session_startup.'); // @dbg
+  if R = 0 then
   begin
-    if FHashMgr <> nil then
+    if Assigned(FHashMgr) then
     begin
-      case FHashMgr.GetHashMode of
+      if ADebugMode then log('HashMgr.GetHashMode:'); // @dbg
+      HashMode := FHashMgr.GetHashMode;
+      if ADebugMode then log('HashMgr.GetHashMode.'); // @dbg
+      if ADebugMode then log('HashMode: '+IntToStr(Integer(HashMode))); // @dbg
+      case HashMode of
         hmMD5:
           begin
             SetLength(Fingerprint, MD5_DIGEST_LENGTH);
+            if ADebugMode then log('libssh2_hostkey_hash: MD5'); // @dbg
             Pointer(Fingerprint) := libssh2_hostkey_hash(FSession, LIBSSH2_HOSTKEY_HASH_MD5);
+            if ADebugMode then log('libssh2_hostkey_hash.'); // @dbg
           end;
         hmSHA1:
           begin
             SetLength(Fingerprint, SHA_DIGEST_LENGTH);
+            if ADebugMode then log('libssh2_hostkey_hash: SHA1'); // @dbg
             Pointer(Fingerprint) := libssh2_hostkey_hash(FSession, LIBSSH2_HOSTKEY_HASH_SHA1);
+            if ADebugMode then log('libssh2_hostkey_hash.'); // @dbg
           end;
       end;
       Aborted := False;
+      if ADebugMode then log('HashMgr.GetFingerprint:'); // @dbg
       {Pointer(StoredFingerprint)}StoredFingerprint := FHashMgr.GetFingerprint(FHost, FPort);
+      if ADebugMode then log('HashMgr.GetFingerprint.'); // @dbg
       if StoredFingerprint = nil then
-        Aborted := HandleFingerprint(fsNew, Fingerprint)
-      else if not FHashMgr.CompareFingerprints(Fingerprint, StoredFingerprint) then
-        Aborted := HandleFingerprint(fsChanged, Fingerprint);
+      begin
+        if ADebugMode then log('HandleFingerprint:'); // @dbg
+        Aborted := HandleFingerprint(fsNew, Fingerprint);
+        if ADebugMode then log('HandleFingerprint.'); // @dbg
+      end
+      else begin
+        if ADebugMode then log('HashMgr.CompareFingerprints:'); // @dbg
+        OK := FHashMgr.CompareFingerprints(Fingerprint, StoredFingerprint);
+        if ADebugMode then log('HashMgr.CompareFingerprints.'); // @dbg
+        if not OK then
+        begin
+          if ADebugMode then log('HandleFingerprint:'); // @dbg
+          Aborted := HandleFingerprint(fsChanged, Fingerprint);
+          if ADebugMode then log('HandleFingerprint.'); // @dbg
+        end;
+      end;
 
       if Aborted then
       begin
+        if ADebugMode then log('Aborted!'); // @dbg
         Disconnect;
         Exit;
       end;
     end;
 
+    if ADebugMode then log('libssh2_session_set_blocking:'); //@dbg
     libssh2_session_set_blocking(FSession, 1);
-    {+}
+    if ADebugMode then log('libssh2_session_set_blocking.'); //@dbg
+
     if (FTimeOut > 0) and (FTimeOut<10) then FTimeOut := 10;
     if FKeepAlive then
+    begin
+      if ADebugMode then log('libssh2_keepalive_config: seconds: ' + IntToStr(FTimeOut)); // @dbg
       libssh2_keepalive_config(FSession, Integer(FKeepAlive), FTimeOut); // FTimeOut - number of seconds
-    {+.}
+      if ADebugMode then log('libssh2_keepalive_config.'); // @dbg
+    end;
 
+    if ADebugMode then log('libssh2_userauth_list:'); // @dbg
     UserAuthList := libssh2_userauth_list(FSession, PAnsiChar(AnsiString(FUserName)),
       Length(AnsiString(FUserName)));
-    if UserAuthList = nil then
+    if ADebugMode then log('libssh2_userauth_list.'); // @dbg
+    OK := Assigned(UserAuthList);
+    if not OK then
     begin
       Disconnect;
       RaiseSSHError('Could not get user auth list.');
     end;
 
-  auth :
+    iRepeat := 0;
+    iRepeatLimit := 17;
+    sError := ''; sErrorFirst := ''; sException := '';
+L_AUTH_REPEAT :
+    if iRepeat >= iRepeatLimit then
+    begin
+      if sErrorFirst <> '' then sError := sErrorFirst;
+      if sError = '' then
+      begin
+        if (R <> 0) and Assigned(FSession) then
+          sError := GetLastSSHError(R)
+        else if sException <> '' then
+          sError := sException
+        else
+          sError := 'Auth repeat limitation.';
+      end;
+      Disconnect;
+      RaiseSSHError(sError);
+    end;
+    if (iRepeat > 0) and (sErrorFirst = '') and (sError <> '') then sErrorFirst := sError;
+    Inc(iRepeat);
 
     AuthOK := False;
+    if ADebugMode then log('ParseAuthList: "' + string(StrPas(UserAuthList)) + '"'); // @dbg
     AuthMode := ParseAuthList(UserAuthList);
+    if ADebugMode then log('ParseAuthList.'); // @dbg
     if amTryAll in AuthMode then
-      AuthOK := UserAuthTryAll
+    begin
+      if ADebugMode then log('UserAuthTryAll:'); // @dbg
+      AuthOK := UserAuthTryAll();
+      if ADebugMode then log('UserAuthTryAll.'); // @dbg
+    end
     else
     begin
-      if amPassword in AuthMode then
-        AuthOK := UserAuthPassword;
+      if (not AuthOK) and (amPublicKey in AuthMode)
+        and ((FPubKeyPath <> '') or (FPrivKeyPath <> '')) then
+      begin
+        if ADebugMode then log('UserAuthPKey:'); // @dbg
+        AuthOK := UserAuthPKey();
+        if ADebugMode then log('UserAuthPKey.'); // @dbg
+      end;
+
+      if (not AuthOK) and (amPassword in AuthMode)
+        and (FPassword <> '') then
+      begin
+        if ADebugMode then log('UserAuthPassword:'); // @dbg
+        AuthOK := UserAuthPassword();
+        if ADebugMode then log('UserAuthPassword.'); // @dbg
+      end;
+
       if not AuthOK and (amKeyboardInteractive in AuthMode) then
-        AuthOK := UserAuthKeyboardInteractive;
-      if not AuthOK and (amPublicKey in AuthMode) then
-        AuthOK := UserAuthPKey;
+      begin
+        if ADebugMode then log('UserAuthKeyboardInteractive:'); // @dbg
+        AuthOK := UserAuthKeyboardInteractive();
+        if ADebugMode then log('UserAuthKeyboardInteractive.'); // @dbg
+      end;
+
       if not AuthOK and (amPublicKeyViaAgent in AuthMode) then
-        AuthOK := UserAuthPKeyViaAgent;
+      begin
+        if ADebugMode then log('UserAuthPKeyViaAgent:'); // @dbg
+        AuthOK := UserAuthPKeyViaAgent();
+        if ADebugMode then log('UserAuthPKeyViaAgent.'); // @dbg
+      end;
     end;
 
-    if not(AuthOK and (libssh2_userauth_authenticated(FSession) > 0)) then
+    OK := AuthOK;
+    if (not OK) and ADebugMode then log('Auth Failed!'); // @dbg
+    if OK then
     begin
-      B := True;
+      if ADebugMode then log('libssh2_userauth_authenticated:'); // @dbg
+      R := libssh2_userauth_authenticated(FSession);
+      if ADebugMode then log('libssh2_userauth_authenticated.'); // @dbg
+      OK := R > 0;
+      if (not OK) and ADebugMode then log('AuthFailed: ' + IntToStr(R)); //@dbg
+    end;
+    if not OK then
+    begin
+      OK := True; // repeat auth
       if Assigned(FOnAuthFail) then
-        FOnAuthFail(Self, B);
-      if not B then
       begin
+        if ADebugMode then log('OnAuthFailed:'); // @dbg
+        FOnAuthFail(Self, OK);
+        if ADebugMode then log('OnAuthFailed.'); // @dbg
+      end;
+      if not OK then
+      begin
+        if ADebugMode then log('Abort Auth!'); // @dbg
+        if sErrorFirst <> '' then sError := sErrorFirst;
+        if sError = '' then
+        begin
+          if (R <> 0) and Assigned(FSession) then
+            sError := GetLastSSHError(R)
+          else if sException <> '' then
+            sError := sException
+          else
+            sError := 'Abort Auth.';
+        end;
         Disconnect;
-        Exit;
+        RaiseSSHError(sError);
+        //Exit;
       end
       else
-        goto auth;
+      begin
+        if ADebugMode then log('Repeat Auth:'); // @dbg
+        goto L_AUTH_REPEAT;
+      end;
     end;
 
+    if ADebugMode then log('Try Connected!'); // @dbg
     FConnected := True;
     if Assigned(FOnConnect) then
+    begin
+      if ADebugMode then log('OnConnect:'); // @dbg
       FOnConnect(Self);
+      if ADebugMode then log('OnConnect.'); // @dbg
+    end;
   end
   else
+  begin
+    if ADebugMode then log('Failed Auth!'); // @dbg
     RaiseSSHError;
+  end;
+
+  if ADebugMode then log('Done!'); // @dbg
 end;
 
 function TSSH2Client.ConnectSocket(var S: Integer): Boolean;
@@ -1289,6 +1683,9 @@ end;
 constructor TSSH2Client.Create(AOwner: TComponent);
 begin
   inherited;
+  {$IFDEF DEUBUG}     //@dbg
+  FDebugMode := True; //@dbg
+  {$ENDIF}            //@dbg
   FHost := '';
   FPort := 22;
   FUserName := '';
@@ -1299,9 +1696,7 @@ begin
   FConnected := False;
   FCanceled := False;
   FKeepAlive := False;
-  {+}
   FTimeOut := 10;
-  {+.}
   FSockBufLen := 8 * 1024;
   FSocket := INVALID_SOCKET;
   FCodePage := CP_UTF8;
@@ -1347,9 +1742,12 @@ begin
   try
     if FSession <> nil then
     begin
-      libssh2_session_disconnect(FSession,
-        PAnsiChar(AnsiString(FClientBanner + ': ' + GetVersion + ' going to shutdown. Bye.')));
-      libssh2_session_free(FSession);
+      try
+        libssh2_session_disconnect(FSession,
+          PAnsiChar(AnsiString(FClientBanner + ': ' + GetVersion + ' going to shutdown. Bye.')));
+      finally
+        libssh2_session_free(FSession);
+      end;
     end;
   finally
     closesocket(FSocket);
@@ -1438,26 +1836,32 @@ begin
 end;
 
 procedure TSSH2Client.RaiseSSHError(const AMsg: string; E: Integer);
+var
+  sError: string;
 begin
-  //
   if AMsg <> '' then
-    raise ESSH2Exception.Create(AMsg)
+    sError := AMsg
   else
-    raise ESSH2Exception.Create(GetLastSSHError(E));
+    sError := GetLastSSHError(E);
+  //if FDebugMode then
+  dbg('SSH ERROR: ' + sError); // @dbg
+  raise ESSH2Exception.Create(sError)
 end;
 
 procedure TSSH2Client.SetAuthModes(const Value: TAuthModes);
 begin
   if FAuthModes <> Value then
   begin
-    if Value = [] then
-      Exit;
+    //if Value = [] then // when == [] - use only server allowed
+    //  Exit;
     if amTryAll in Value then
     begin
-      FAuthModes := [amTryAll];
-      Exit;
+      FAuthModes := [amTryAll]; // foreach all methods
+    end
+    else
+    begin
+      FAuthModes := Value - [amTryAll]; // use only server allowed and client defined
     end;
-    FAuthModes := Value;
   end;
 end;
 
@@ -1648,7 +2052,7 @@ begin
   if libssh2_sftp_stat(FSFtp, PAnsiChar(MyEncode(ASourceFileName)), Attribs) = 0 then
   begin
     if not TestBit(Attribs.Flags, LIBSSH2_SFTP_ATTR_SIZE) then
-      OutputDebugStringW(PWChar('TSFTPClient::Get >> No size attrib:' + ASourceFileName));
+      dbgw('TSFTPClient::Get >> No size attrib:' + ASourceFileName);
 
     FHandle := libssh2_sftp_open(FSFtp, PAnsiChar(MyEncode(ASourceFileName)), LIBSSH2_FXF_READ, 0);
     if FHandle = nil then
@@ -1673,7 +2077,7 @@ begin
   if libssh2_sftp_stat(FSFtp, PAnsiChar(MyEncode(ASourceFileName)), Attribs) = 0 then
   begin
     if not TestBit(Attribs.Flags, LIBSSH2_SFTP_ATTR_SIZE) then
-      OutputDebugStringW(PWChar('TSFTPClient::Get >> No size attrib:' + ASourceFileName));
+      dbgw('TSFTPClient::Get >> No size attrib:' + ASourceFileName);
 
     FHandle := libssh2_sftp_open(FSFtp, PAnsiChar(MyEncode(ASourceFileName)), LIBSSH2_FXF_READ, 0);
     if FHandle = nil then
