@@ -30,7 +30,7 @@ uses
   Classes, SysUtils, WinSock, libssh2, libssh2_sftp;
 
 const
-  AF_INET6 = 32;
+  AF_INET6 = 10;
   SFTPCLIENT_VERSION = '0.5';
 
 type
