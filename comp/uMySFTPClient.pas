@@ -1454,100 +1454,26 @@ begin
     UserAuthList := libssh2_userauth_list(FSession, PAnsiChar(AnsiString(FUserName)),
       Length(AnsiString(FUserName)));
     if ADebugMode then log('libssh2_userauth_list.'); // @dbg
-    OK := Assigned(UserAuthList);
+
+    // added supports authentication method NONE: https://www.libssh2.org/libssh2_userauth_list.html
+    if ADebugMode then log('libssh2_userauth_authenticated:'); // @dbg
+    OK := libssh2_userauth_authenticated(FSession) > 0;
+    if ADebugMode then log('libssh2_userauth_authenticated.'); // @dbg
     if not OK then
-    begin
-      Disconnect;
-      RaiseSSHError('Could not get user auth list.');
-    end;
-
-    iRepeat := 0;
-    iRepeatLimit := 17;
-    sError := ''; sErrorFirst := ''; sException := '';
-L_AUTH_REPEAT :
-    if iRepeat >= iRepeatLimit then
-    begin
-      if sErrorFirst <> '' then sError := sErrorFirst;
-      if sError = '' then
-      begin
-        if (R <> 0) and Assigned(FSession) then
-          sError := GetLastSSHError(R)
-        else if sException <> '' then
-          sError := sException
-        else
-          sError := 'Auth repeat limitation.';
-      end;
-      Disconnect;
-      RaiseSSHError(sError);
-    end;
-    if (iRepeat > 0) and (sErrorFirst = '') and (sError <> '') then sErrorFirst := sError;
-    Inc(iRepeat);
-
-    AuthOK := False;
-    if ADebugMode then log('ParseAuthList: "' + string(StrPas(UserAuthList)) + '"'); // @dbg
-    AuthMode := ParseAuthList(UserAuthList);
-    if ADebugMode then log('ParseAuthList.'); // @dbg
-    if amTryAll in AuthMode then
-    begin
-      if ADebugMode then log('UserAuthTryAll:'); // @dbg
-      AuthOK := UserAuthTryAll();
-      if ADebugMode then log('UserAuthTryAll.'); // @dbg
-    end
-    else
-    begin
-      if (not AuthOK) and (amPublicKey in AuthMode)
-        and ((FPubKeyPath <> '') or (FPrivKeyPath <> '')) then
-      begin
-        if ADebugMode then log('UserAuthPKey:'); // @dbg
-        AuthOK := UserAuthPKey();
-        if ADebugMode then log('UserAuthPKey.'); // @dbg
-      end;
-
-      if (not AuthOK) and (amPassword in AuthMode)
-        and (FPassword <> '') then
-      begin
-        if ADebugMode then log('UserAuthPassword:'); // @dbg
-        AuthOK := UserAuthPassword();
-        if ADebugMode then log('UserAuthPassword.'); // @dbg
-      end;
-
-      if not AuthOK and (amKeyboardInteractive in AuthMode) then
-      begin
-        if ADebugMode then log('UserAuthKeyboardInteractive:'); // @dbg
-        AuthOK := UserAuthKeyboardInteractive();
-        if ADebugMode then log('UserAuthKeyboardInteractive.'); // @dbg
-      end;
-
-      if not AuthOK and (amPublicKeyViaAgent in AuthMode) then
-      begin
-        if ADebugMode then log('UserAuthPKeyViaAgent:'); // @dbg
-        AuthOK := UserAuthPKeyViaAgent();
-        if ADebugMode then log('UserAuthPKeyViaAgent.'); // @dbg
-      end;
-    end;
-
-    OK := AuthOK;
-    if (not OK) and ADebugMode then log('Auth Failed!'); // @dbg
-    if OK then
-    begin
-      if ADebugMode then log('libssh2_userauth_authenticated:'); // @dbg
-      R := libssh2_userauth_authenticated(FSession);
-      if ADebugMode then log('libssh2_userauth_authenticated.'); // @dbg
-      OK := R > 0;
-      if (not OK) and ADebugMode then log('AuthFailed: ' + IntToStr(R)); //@dbg
-    end;
-    if not OK then
-    begin
-      OK := True; // repeat auth
-      if Assigned(FOnAuthFail) then
-      begin
-        if ADebugMode then log('OnAuthFailed:'); // @dbg
-        FOnAuthFail(Self, OK);
-        if ADebugMode then log('OnAuthFailed.'); // @dbg
-      end;
+    begin // when not auth NONE
+      OK := Assigned(UserAuthList);
       if not OK then
       begin
-        if ADebugMode then log('Abort Auth!'); // @dbg
+        Disconnect;
+        RaiseSSHError('Could not get user auth list.');
+      end;
+
+      iRepeat := 0;
+      iRepeatLimit := 17;
+      sError := ''; sErrorFirst := ''; sException := '';
+    L_AUTH_REPEAT :
+      if iRepeat >= iRepeatLimit then
+      begin
         if sErrorFirst <> '' then sError := sErrorFirst;
         if sError = '' then
         begin
@@ -1556,18 +1482,100 @@ L_AUTH_REPEAT :
           else if sException <> '' then
             sError := sException
           else
-            sError := 'Abort Auth.';
+            sError := 'Auth repeat limitation.';
         end;
         Disconnect;
         RaiseSSHError(sError);
-        //Exit;
+      end;
+      if (iRepeat > 0) and (sErrorFirst = '') and (sError <> '') then sErrorFirst := sError;
+      Inc(iRepeat);
+
+      AuthOK := False;
+      if ADebugMode then log('ParseAuthList: "' + string(StrPas(UserAuthList)) + '"'); // @dbg
+      AuthMode := ParseAuthList(UserAuthList);
+      if ADebugMode then log('ParseAuthList.'); // @dbg
+      if amTryAll in AuthMode then
+      begin
+        if ADebugMode then log('UserAuthTryAll:'); // @dbg
+        AuthOK := UserAuthTryAll();
+        if ADebugMode then log('UserAuthTryAll.'); // @dbg
       end
       else
       begin
-        if ADebugMode then log('Repeat Auth:'); // @dbg
-        goto L_AUTH_REPEAT;
+        if (not AuthOK) and (amPublicKey in AuthMode)
+          and ((FPubKeyPath <> '') or (FPrivKeyPath <> '')) then
+        begin
+          if ADebugMode then log('UserAuthPKey:'); // @dbg
+          AuthOK := UserAuthPKey();
+          if ADebugMode then log('UserAuthPKey.'); // @dbg
+        end;
+
+        if (not AuthOK) and (amPassword in AuthMode)
+          and (FPassword <> '') then
+        begin
+          if ADebugMode then log('UserAuthPassword:'); // @dbg
+          AuthOK := UserAuthPassword();
+          if ADebugMode then log('UserAuthPassword.'); // @dbg
+        end;
+
+        if not AuthOK and (amKeyboardInteractive in AuthMode) then
+        begin
+          if ADebugMode then log('UserAuthKeyboardInteractive:'); // @dbg
+          AuthOK := UserAuthKeyboardInteractive();
+          if ADebugMode then log('UserAuthKeyboardInteractive.'); // @dbg
+        end;
+
+        if not AuthOK and (amPublicKeyViaAgent in AuthMode) then
+        begin
+          if ADebugMode then log('UserAuthPKeyViaAgent:'); // @dbg
+          AuthOK := UserAuthPKeyViaAgent();
+          if ADebugMode then log('UserAuthPKeyViaAgent.'); // @dbg
+        end;
       end;
-    end;
+
+      OK := AuthOK;
+      if (not OK) and ADebugMode then log('Auth Failed!'); // @dbg
+      if OK then
+      begin
+        if ADebugMode then log('libssh2_userauth_authenticated:'); // @dbg
+        R := libssh2_userauth_authenticated(FSession);
+        if ADebugMode then log('libssh2_userauth_authenticated.'); // @dbg
+        OK := R > 0;
+        if (not OK) and ADebugMode then log('AuthFailed: ' + IntToStr(R)); //@dbg
+      end;
+      if not OK then
+      begin
+        OK := True; // repeat auth
+        if Assigned(FOnAuthFail) then
+        begin
+          if ADebugMode then log('OnAuthFailed:'); // @dbg
+          FOnAuthFail(Self, OK);
+          if ADebugMode then log('OnAuthFailed.'); // @dbg
+        end;
+        if not OK then
+        begin
+          if ADebugMode then log('Abort Auth!'); // @dbg
+          if sErrorFirst <> '' then sError := sErrorFirst;
+          if sError = '' then
+          begin
+            if (R <> 0) and Assigned(FSession) then
+              sError := GetLastSSHError(R)
+            else if sException <> '' then
+              sError := sException
+            else
+              sError := 'Abort Auth.';
+          end;
+          Disconnect;
+          RaiseSSHError(sError);
+          //Exit;
+        end
+        else
+        begin
+          if ADebugMode then log('Repeat Auth:'); // @dbg
+          goto L_AUTH_REPEAT;
+        end;
+      end;
+    end; // "if not OK" -  when not auth NONE
 
     if ADebugMode then log('Try Connected!'); // @dbg
     FConnected := True;
