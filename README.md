@@ -1,4 +1,6 @@
 # Delphi/Pascal Wrapper around the library "libssh2"
+![](https://tokei.rs/b1/github/pult/libssh2_delphi?category=code)
+![](https://tokei.rs/b1/github/pult/libssh2_delphi?category=files)
 
 - **Base author:**
       - [Zeljko Marjanovic] (https://bitbucket.org/ZeljkoMarjanovic/libssh2-delphi)
