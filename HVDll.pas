@@ -1,28 +1,63 @@
+{ HVDll.pas } // version: 2020.0615.1000
 unit HVDll;
 //
-// https://github.com/pult/dll_load_delay
-// https://bitbucket.org/VadimLV/dll_load_delay
-// http://hallvards.blogspot.com/2008/03/tdm8-delayloading-of-dlls.html
-//
-// Support for DelayLoading of DLLs like VC++6.0 or latest Delphi (delayed)
+// Support for DelayLoading of DLLs á la VC++6.0
 // Written by Hallvard Vassbotn (hallvard@falcon.no), January 1999
 //
+//
+// Latest source:  https://github.com/pult/dll_load_delay
+// Base source:    http://hallvards.blogspot.com/2008/03/tdm8-delayloading-of-dlls.html
+//
+(*
+  TODO: Win64 (x86_64) for Delphi and FPC
+*)
 interface
 
 {$UNDEF SUPPORTED}
 {$IFDEF WIN32}
+  {$DEFINE MSWINDOWS}
   {$DEFINE SUPPORTED} // TODO: Check Delphi and FPC
 {$ENDIF}
 {$IFDEF WIN64}
-  {.$DEFINE SUPPORTED} // TODO: Check Delphi and FPC
+  {$DEFINE MSWINDOWS}
+  {-DEFINE SUPPORTED} ///TODO: WIN64; Check Delphi and FPC
 {$ENDIF}
+
+//{$ifdef CPU64}
+//  {.$DEFINE CPUX64}
+//{$else}
+//  {.$DEFINE CPUX86}
+//{$endif}
 
 {$IFDEF SUPPORTED}
 
+{$UNDEF _MINI_}
+{$DEFINE _MINI_}  { optional }
+
 {$IFDEF FPC}
+  {.$WARNINGS OFF}
+  {.$HINTS OFF}
+
+  {$MODE OBJFPC}
+  //{$MODE DELPHI}
+  {$H+} // Huge String (not ShortString)
+  {-DEFINE UNICODE}    { optional }
+
+  {$ASMMODE INTEL}
+
+  {$B-,R-}
+  {$Q-}
+  {$J+}
+
+  {$ASSERTIONS OFF}
+
   {$ALIGN 8} // For packed record
   {$MINENUMSIZE 1}
-{$ELSE}
+{$ELSE !FPC}
+  {$B-,R-}
+
+  {$ASSERTIONS OFF}
+
   {$IFDEF UNICODE}
     {$ALIGN 8} // For packed record
     {$MINENUMSIZE 1}
@@ -30,52 +65,72 @@ interface
     {$IF CompilerVersion >= 25.00}{XE4Up}
       {$ZEROBASEDSTRINGS OFF}
     {$IFEND}
-
   {$ENDIF}
-{$ENDIF}
+{$ENDIF !FPC}
+
+//{$IFOPT D+}
+//  {$UNDEF _OPT_DEBUG_OFF_}
+//{$ELSE}
+//  {$DEFINE _OPT_DEBUG_OFF_}
+//{$ENDIF}
 
 uses
   Windows,
+  {$IFNDEF FPC}
   Types,
+  {$ENDIF !FPC}
+  {$IFNDEF _MINI_}
   Classes,
   SysUtils,
+  {$ENDIF}
   HVHeaps;
 
 const
-  uHVDll = 19990128; // 1999-01-28
+  uHVDll = 202006151000; // 2020-06-15 10:00
   {$EXTERNALSYM uHVDll}
   (*
   // Sample for checking:
   // <sample>
-  {$warn comparison_true off}
-  {$if (not declared(uHVDll)) or (uHVDll < 19990128)}
-    {$warn message_directive on}{$MESSAGE WARN 'Please use last HVDll.pas'}
-    //{$MESSAGE FATAL 'Please use last HVDll.pas'}
+  {$ifndef fpc}{$warn comparison_true off}{$endif}
+  {$if (not declared(uHVDll)) or (uHVDll < 202006151000)}
+    {$ifndef fpc}{$warn message_directive on}{$endif}
+      {$MESSAGE WARN 'Please use latest "HVDll.pas" from "https://github.com/pult/dll_load_delay"'}
+      // or :
+      //{$MESSAGE FATAL 'Please use latest "HVDll.pas" from "https://github.com/pult/dll_load_delay"'}
   {$ifend}{$warnings on}
   // <\sample>
   //*)
 
 type
-  // Structures to keep the address of function variables and name/id pairs
   PPointer = ^Pointer;
-  PEntry = ^TEntry;
+  // Structures to keep the address of function variables and name/id pairs
+  TEntryEx = packed record
+    EProc: PPointer;
+    DProc: Pointer; // Reference to dummy when EProc not exists
+    case Integer of
+      0: (EName: PChar);
+      1: (EID  : LongInt);
+  end;
+  PEntryEx = ^TEntryEx;
+
   TEntry = packed record
     Proc: PPointer;
     case Integer of
-      0 : (Name: PChar);
-      1 : (ID  : LongInt);
-    end;
-  PEntries = ^TEntries;
-  TEntries = packed array[0..High(Word)-1] of TEntry;
+      0: (Name: PChar);
+      1: (ID  : LongInt);
+  end;
+  PEntry = ^TEntry;
+
+  TEntriesEx = array of TEntryEx;
 
   // Structures to generate the per-routine thunks
-  PThunk = ^TThunk;
   TThunk = packed record
     CALL  : Byte;
     OFFSET: Integer;
   end;
-  PThunks = ^TThunks;
+  PThunk = ^TThunk;
   TThunks = packed array[0..High(Word)-1] of TThunk;
+  PThunks = ^TThunks;
 
   // Structure to generate the per-DLL thunks
   TThunkHeader = packed record
@@ -84,6 +139,7 @@ type
     JMP    : Byte;
     OFFSET : Integer;
   end;
+  PThunkHeader=^TThunkHeader;
 
   // The combined per-DLL and per-routine thunks
   PThunkingCode = ^TThunkingCode;
@@ -95,7 +151,7 @@ type
   // The base class that provides DelayLoad capability
   TDll = class//(TObject)
   private
-    FEntries  : PEntries;
+    FEntries  : TEntriesEx;
     FThunkingCode: PThunkingCode;
     FCount    : Integer;
     FFullPath : string;
@@ -111,7 +167,7 @@ type
     function GetEntryName(Index: Integer): string;
   protected
     function LoadHandle: HMODULE; virtual;
-    class procedure Error(const Msg: string; Args: array of const);
+    class procedure Error(const Msg: string);
     procedure CreateThunks;
     procedure DestroyThunks;
     function HasThunk(Thunk: PThunk): Boolean;
@@ -121,10 +177,11 @@ type
     function GetIndexFromThunk(Thunk: PThunk): Integer;
     function GetIndexFromProc(Proc: PPointer): Integer;
     function ValidIndex(Index: Integer): Boolean;
-    procedure CheckIndex(Index: Integer);
+    function CheckIndex(Index: Integer): Boolean; //inline;
     property Procs[Index: Integer]: Pointer read GetProcs write SetProcs;
   public
-    constructor Create(const DllName: string; const Entries: array of TEntry);
+    constructor Create(const DllName: string; const Entries: array of TEntryEx); overload;
+    constructor Create(const DllName: string; const Entries: array of TEntry); overload;
     destructor Destroy; override;
     procedure Load;
     procedure Unload;
@@ -132,12 +189,39 @@ type
     function HookRoutine(Proc: PPointer; HookProc: Pointer; var OrgProc{: Pointer}): Boolean;
     function UnHookRoutine(Proc: PPointer; var OrgProc{: Pointer}): Boolean;
     property FullPath: string read FFullPath write SetFullPath;
-    property Handle: HMODULE read GetHandle;
+    //property Handle: HMODULE read GetHandle;
     property Loaded: Boolean read GetLoaded;
     property Available: Boolean read GetAvailable;
     property Count: Integer read FCount;
     property EntryName[Index: Integer]: string read GetEntryName;
   end;
+
+{$IFDEF _MINI_}
+const
+  MaxListSize = Maxint div 16;
+type
+  PPointerList = ^TPointerList;
+  TPointerList = array[0..MaxListSize - 1] of Pointer;
+  TList = class
+  private
+    FList: PPointerList;
+    FCount: Integer;
+    FCapacity: Integer;
+  protected
+    function Get(Index: Integer): Pointer;
+    procedure Grow; virtual;
+    procedure Put(Index: Integer; Item: Pointer);
+    procedure SetCapacity(NewCapacity: Integer);
+    procedure SetCount(NewCount: Integer);
+  public
+    destructor Destroy; override;
+    function Add(Item: Pointer): Integer;
+    procedure Clear; virtual;
+    procedure Delete(Index: Integer);
+    function IndexOf(Item: Pointer): Integer;
+    function Remove(Item: Pointer): Integer;
+  end;
+{$ENDIF _MINI_}
 
   // The class that keeps a list of all created TDll instances in one place
   TDllNotifyAction = (daLoadedDll, daUnloadedDll, daLinkedRoutine);
@@ -157,7 +241,12 @@ type
     property OnDllNotify: TDllNotifyEvent read FOnDllNotify write FOnDllNotify;
   end;
 
+{$IFNDEF _MINI_}
   EDllError = class(Exception);
+{$ELSE}
+function IntToStr(Value: LongInt{DWORD}): string;
+function SysErrorMessage(ErrorCode: Cardinal; AModuleHandle: THandle = 0): string;
+{$ENDIF _MINI_}
 
 var
   Dlls: TDlls;
@@ -173,39 +262,87 @@ const
 {$ELSE}
 resourcestring
 {$ENDIF}
-  SIndexOutOfRange      = 'DLL-entry index out of range (%d)';
   SOrdinal              = 'ordinal #';
+  {$IFNDEF _MINI_}
+  SIndexOutOfRange      = 'DLL-entry index out of range (%d)';
   SCannotLoadLibrary    = 'Could not find the library: "%s"'#13#10'(%s)';
   SCannotGetProcAddress = 'Could not find the routine "%s" in the library "%s"'#13#10'(%s)';
-  SCannotFindThunk      = 'Could not find the TDll object corresponding to the thunk address %p';
+//SCannotFindThunk      = 'Could not find the TDll object corresponding to the thunk address %p';
+  {$ELSE}
+  SIndexOutOfRange      = 'DLL-entry index out of range ';
+  {$ENDIF !_MINI_}
 
 { Helper routines }
 
-function EntryToString(const Entry: TEntry): string;
+{$IFDEF _MINI_}
+function NativeUIntToStrBuf(ANum: NativeUInt; APBuffer: PAnsiChar): Cardinal; //PAnsiChar; // "getmem.inc"
+const
+  MaxDigits = 20;
+var
+  LDigitBuffer: array[0..MaxDigits - 1] of AnsiChar;
+  LCount: Cardinal;
+  LDigit: NativeUInt;
 begin
-  if Hi(Entry.ID) <> 0
-  then Result := string(Entry.Name)
-  else Result := SOrdinal+IntToStr(Entry.ID);
+  {Generate the digits in the local buffer}
+  LCount := 0;
+  repeat
+    LDigit := ANum;
+    ANum := ANum div 10;
+    {$hints off}
+    LDigit := LDigit - ANum * 10;
+    {$hints on}
+    Inc(LCount);
+    LDigitBuffer[MaxDigits - LCount] := AnsiChar(Ord('0') + LDigit);
+  until ANum = 0;
+  {Copy the digits to the output buffer and advance it}
+  System.Move(LDigitBuffer[MaxDigits - LCount], APBuffer^, LCount);
+  //Result := APBuffer + LCount;
+  Result := LCount;
 end;
 
+function IntToStr(Value: LongInt{DWORD}): string;
+var
+  S: AnsiString;
+  L: Cardinal;
+begin
+  S := ''; SetLength(S, 10);
+  L := NativeUIntToStrBuf(Value, PAnsiChar(S));
+  SetLength(S, L);
+  Result := string(S);
+end;
+{$ENDIF _MINI_}
+
+{$warnings off}
+function EntryToString(const Entry: TEntryEx): string;
+begin
+  if Hi(Entry.EID) <> 0
+  then Result := string(Entry.EName)
+  else Result := SOrdinal+IntToStr(Entry.EID);
+end;
+{$warnings on}
+
+//{$IFNDEF FPC}
+//  {$D-}
+//{$ENDIF FPC}
+//
 //{$IFDEF WIN64}
 //procedure ThunkingTarget(ASelf, AThunk: Pointer);
 //{$ELSE}
-procedure ThunkingTarget;
+procedure ThunkingTarget; assembler;
 //{$ENDIF}
 const
   TThunkSize = SizeOf(TThunk);
 asm
 {$IFDEF WIN64}
-// TODO: ...
+//TODO: WIN64
   //.PARAMS 3
-fail code !!!
+//fail code !!!
   PUSH    RAX
   PUSH    RDX
   PUSH    RCX
   MOV     EAX, [ESP+12] //?12  // Self
   MOV     EDX, [ESP+16] //?16  // Thunk
-  SUB     EDX, TThunkSize //TYPE TThunk // Using SizeOf(TThunk) here does not work. BASM bug?
+  SUB     EDX, TThunkSize //TYPE TThunk
   CALL    TDll.DelayLoadFromThunk{(Self, Thunk);}
   MOV     [ESP+16], EAX
   POP     RCX
@@ -231,7 +368,7 @@ fail code !!!
   MOV     EDX, [ESP+16]   // Thunk
   // The return address is just after the thunk that
   // called us, so go back one step
-  SUB     EDX, TYPE TThunk // Using SizeOf(TThunk) here does not work. BASM bug?
+  SUB     EDX, TYPE TThunk // Using SizeOf(TThunk) here does not work. BASM not supported it(old bug)!
   // Do the rest in Pascal
   CALL    TDll.DelayLoadFromThunk{(Self, Thunk);}
   // Now patch the return address on the stack so that we "return" to the DLL routine
@@ -245,17 +382,60 @@ fail code !!!
   // "Return" to the DLL!
 {$ENDIF WIN32}
 end;
+//
+//{$IFNDEF FPC}
+//  {$IFNDEF _OPT_DEBUG_OFF_}
+//    {$D+} // FPC: Warning: Misplaced global compiler switch, ignored
+//  {$ENDIF}
+//{$ENDIF FPC}
 
 { TDll }
-
-constructor TDll.Create(const DllName: string; const Entries: array of TEntry);
+constructor TDll.Create(const DllName: string; const Entries: array of TEntryEx);
+var
+  i: Integer;
 begin
   inherited Create;
   FFullPath := DllName;
-  FEntries  := @Entries;
-  FCount    := High(Entries) - Low(Entries) + 1;
-  CreateThunks;
-  ActivateThunks;
+  FCount    := Length(Entries);
+  if FCount > 0 then
+  begin
+    SetLength(FEntries, FCount);
+    for i := 0 to High(Entries) do
+      FEntries[i] := Entries[i];
+    CreateThunks;
+    ActivateThunks;
+  end;
+  Dlls.Add(Self);
+end;
+
+constructor TDll.Create(const DllName: string; const Entries: array of TEntry);
+var
+  i: Integer;
+  L: PEntryEx;
+  R: PEntry;
+begin
+  inherited Create;
+  FFullPath := DllName;
+  FCount    := Length(Entries);
+  if FCount > 0 then
+  begin
+    SetLength(FEntries, FCount);
+    L := @FEntries[0];
+    R := @Entries[0];
+    for i := High(Entries) downto 0 do
+    begin
+      //FEntries[i].EProc := Entries[i].Proc;
+      //FEntries[i].EID := Entries[i].ID;
+      //FEntries[i].EName := Entries[i].Name;
+      L^.EProc := R^.Proc;
+      L^.EID := R^.ID;
+      L^.EName := R^.Name;
+      Inc(L);
+      Inc(R);
+    end;
+    CreateThunks;
+    ActivateThunks;
+  end;
   Dlls.Add(Self);
 end;
 
@@ -267,35 +447,48 @@ begin
   inherited Destroy;
 end;
 
-procedure TDll.CreateThunks;
+procedure TDll.CreateThunks; //TODO: WIN64
 const
   CallInstruction = $E8;
   PushInstruction = $68;
   JumpInstruction = $E9;
 var
-  i : Integer;
+  i: Integer;
+  Size: DWORD;
+  H: PThunkHeader;
+  T, T1: PThunk;
 begin
+  if Count = 0 then
+    Exit;
   // Get a memory block large enough for the thunks
-  Dlls.CodeHeap.GetMem(FThunkingCode, SizeOf(TThunkHeader) + SizeOf(TThunk) * Count);
+  Size := SizeOf(TThunkHeader) + SizeOf(TThunk) * Count;
+  Dlls.CodeHeap.GetMem(FThunkingCode, Size);
 
   // Generate some machine code in the thunks
-  with FThunkingCode^, ThunkHeader do
+  //with FThunkingCode^{, ThunkHeader} do
   begin
     // The per-Dll thunk does this:
     // PUSH    Self
     // JMP     ThunkingTarget
-    PUSH   := PushInstruction;
-    VALUE  := Self;
-    JMP    := JumpInstruction;
-    OFFSET := PAnsiChar(@ThunkingTarget) - PAnsiChar(@Thunks[0]);
+    H := @FThunkingCode^.ThunkHeader;
+    H^.PUSH   := PushInstruction;
+    H^.VALUE  := Self;
+    H^.JMP    := JumpInstruction;
+
+    T := @FThunkingCode^.Thunks[0];
+    H^.OFFSET := PAnsiChar(@ThunkingTarget) - PAnsiChar(T);
+
+    T1 := T; Inc(T1); //T1 := @FThunkingCode^.Thunks[1];
     for i := 0 to Count-1 do
-      with Thunks[i] do
-      begin
-        // The per-entry thunk does this:
-        // CALL @ThunkingCode^.ThunkHeader
-        CALL   := CallInstruction;
-        OFFSET := PAnsiChar(@FThunkingCode^.ThunkHeader) - PAnsiChar(@Thunks[i+1]);
-      end;
+    begin
+      //T := @FThunkingCode^.Thunks[i]; T1 := @FThunkingCode^.Thunks[i+1];
+      // The per-entry thunk does this:
+      // CALL @ThunkingCode^.ThunkHeader
+      T^.CALL   := CallInstruction;
+      T^.OFFSET := PAnsiChar(H) - PAnsiChar(T1);
+      //
+      Inc(T); Inc(T1);
+    end;
   end;
 end;
 
@@ -316,12 +509,36 @@ end;
 function TDll.DelayLoadIndex(Index: Integer): Pointer;
 begin
   Result := GetProcAddrFromIndex(Index);
-  FEntries^[Index].Proc^ := Result;
+  if Assigned(Result) then
+    FEntries[Index].EProc^ := Result
+  else
+    FEntries[Index].EProc^ := FEntries[Index].DProc
+  ;
 end;
 
-class procedure TDll.Error(const Msg: string; Args: array of const);
+class procedure TDll.Error(const Msg: string);
 begin
-  raise EDllError.CreateFmt(Msg, Args);
+  {$IFNDEF _MINI_}
+  raise EDllError.Create(Msg);
+  {$ELSE}
+  {$IFDEF UNICODE}
+  OutputDebugStringW(PWideChar(UnicodeString('ERROR: TDll: ' + Msg)));
+  {$ELSE}
+  OutputDebugStringA(PAnsiChar(AnsiString('ERROR: TDll: ' + Msg)));
+  {$ENDIF}
+  if IsConsole then
+    writeln('ERROR: ', Msg)
+  {$IFDEF DEBUG}
+  else
+    {$IFDEF UNICODE}
+    MessageBoxW(0, PWideChar(UnicodeString(Msg)), {Caption:}nil, MB_OK or MB_ICONERROR)
+    {$ELSE}
+    MessageBoxA(0, PAnsiChar(AnsiString(Msg)), {Caption:}nil, MB_OK or MB_ICONERROR)
+    {$ENDIF}
+  {$ENDIF}
+  ;
+  Halt(1);
+  {$ENDIF _MINI_}
 end;
 
 function TDll.LoadHandle: HMODULE;
@@ -335,14 +552,65 @@ begin
   Result := FHandle;
 end;
 
+{$IFDEF _MINI_}
+{$hints off}
+function SysErrorMessage(ErrorCode: Cardinal; AModuleHandle: THandle = 0): string;
+var
+  Buffer: {$IFDEF UNICODE}PWideChar{$ELSE}PAnsiChar{$ENDIF};
+  Len: Integer;
+  Flags: DWORD;
+  U: {$IFDEF UNICODE}UnicodeString{$ELSE}AnsiString{$ENDIF};
+begin
+  Flags := FORMAT_MESSAGE_FROM_SYSTEM or
+    FORMAT_MESSAGE_IGNORE_INSERTS or
+    FORMAT_MESSAGE_ARGUMENT_ARRAY or
+    FORMAT_MESSAGE_ALLOCATE_BUFFER;
+
+  if AModuleHandle <> 0 then
+    Flags := Flags or FORMAT_MESSAGE_FROM_HMODULE;
+
+  { Obtain the formatted message for the given Win32 ErrorCode
+    Let the OS initialize the Buffer variable. Need to LocalFree it afterward.
+  }
+  {$IFDEF UNICODE}
+  Len := FormatMessageW(Flags, Pointer(AModuleHandle), ErrorCode, 0, @Buffer, 0, nil);
+  {$ELSE}
+  Len := FormatMessageA(Flags, Pointer(AModuleHandle), ErrorCode, 0, @Buffer, 0, nil);
+  {$ENDIF};
+
+  try
+    { Remove the undesired line breaks and '.' char }
+    {$IFDEF UNICODE}
+    while (Len > 0) and ((Buffer[Len - 1] <= WideChar(#32)) or (Buffer[Len - 1] = WideChar('.'))) do
+    {$ELSE}
+    while (Len > 0) and ((Buffer[Len - 1] <= AnsiChar(#32)) or (Buffer[Len - 1] = AnsiChar('.'))) do
+    {$ENDIF};
+      Dec(Len);
+    { Convert to Delphi string }
+    SetString(U, Buffer, Len);
+    Result := string(U);
+  finally
+    { Free the OS allocated memory block }
+    LocalFree(HLOCAL(Buffer));
+  end;
+end;
+{$hints on}
+{$ENDIF _MINI_}
+
 function TDll.GetHandle: HMODULE;
 begin
   Result := FHandle;
   if Result = 0 then
   begin
-    Result := LoadHandle;
+    Result := LoadHandle();
     if Result = 0 then
-      Error(SCannotLoadLibrary, [FullPath, SysErrorMessage(GetLastError)]);
+      {$IFNDEF _MINI_}
+      Error(Format(SCannotLoadLibrary, [FullPath, SysErrorMessage(GetLastError)]));
+      {$ELSE}
+      Error(
+        'Could not find the library: "' + FullPath + '"'#13#10'(' + SysErrorMessage(GetLastError()) + ')'
+      );
+      {$ENDIF _MINI_}
   end;
 end;
 
@@ -354,21 +622,44 @@ begin
 end;
 
 function TDll.LoadProcAddrFromIndex(Index: Integer; var Addr: Pointer): Boolean;
+var
+  H: HMODULE;
 begin
   Result := ValidIndex(Index);
   if Result then
   begin
-    Addr := Windows.GetProcAddress(Handle, FEntries^[Index].Name);
-    Result := Assigned(Addr);
+    H := GetHandle(); // Handle
+    Result := H <> 0;
     if Result then
-      Dlls.DllNotify(Self, daLinkedRoutine, Index);
+    begin
+      Addr := Windows.GetProcAddress(H, FEntries[Index].EName);
+      Result := Assigned(Addr);
+      if not Result then
+      begin
+        Addr := FEntries[Index].DProc;
+        Result := Assigned(Addr);
+      end;
+      if Result then
+        Dlls.DllNotify(Self, daLinkedRoutine, Index);
+    end;
   end;
 end;
 
 function TDll.GetProcAddrFromIndex(Index: Integer): Pointer;
 begin
+//  {$hints off}
+  Result := nil;
   if not LoadProcAddrFromIndex(Index, Result) then
-    Error(SCannotGetProcAddress, [EntryName[Index], FullPath, SysErrorMessage(GetLastError)]);
+  begin
+    {$IFNDEF _MINI_}
+    Error(Format(SCannotGetProcAddress, [EntryName[Index], FullPath, SysErrorMessage(GetLastError)]));
+    {$ELSE}
+    Error(
+      'Could not find the routine "'+EntryName[Index]+'" in the library "'+FullPath+'"'#13#10'('+SysErrorMessage(GetLastError())+')'
+    );
+    {$ENDIF !_MINI_}
+  end;
+//  {$hints on}
 end;
 
 function TDll.HasThunk(Thunk: PThunk): Boolean;
@@ -386,6 +677,17 @@ begin
     DelayLoadIndex(i);
 end;
 
+function AnsiCompareText(const S1, S2: string): Integer;
+begin
+  Result := CompareString(LOCALE_USER_DEFAULT, NORM_IGNORECASE, PChar(S1),
+    Length(S1), PChar(S2), Length(S2)) - 2;
+end;
+
+function CompareText(const S1, S2: string): Integer;
+begin
+  Result := AnsiCompareText(S1, S2);
+end;
+
 procedure TDll.SetFullPath(const Value: string);
 begin
   if CompareText(FFullPath, Value) <> 0 then
@@ -398,17 +700,39 @@ end;
 function TDll.GetEntryName(Index: Integer): string;
 begin
   if ValidIndex(Index)
-  then Result := EntryToString(FEntries^[Index])
+  then Result := EntryToString(FEntries[Index])
+  {$IFNDEF _MINI_}
   else Result := Format(SIndexOutOfRange, [Index]);
+  {$ELSE}
+  else Result := SIndexOutOfRange + '(' + IntToStr(Index) + ')';
+  {$ENDIF _MINI_}
 end;
 
 procedure TDll.ActivateThunks;
 // Patch the procedure variables to point to the generated thunks
 var
   i : Integer;
+  E: PEntryEx;
+  //T: PThunks;
 begin
+  //for i := 0 to Count-1 do
+  //  if Assigned(FEntries[i].EProc) then
+  //    FEntries[i].EProc^ := @FThunkingCode^.Thunks[i];
+  //Exit;
+
+  if Count = 0 then
+    Exit;
+  E := @FEntries[0];
+  //T := @FThunkingCode^.Thunks[0];
+  //for i := Count-1 downto 0 do
   for i := 0 to Count-1 do
-    FEntries^[i].Proc^ := @FThunkingCode^.Thunks[i];
+  begin
+    if Assigned(E^.EProc) then
+      //--E^.EProc^ := T;
+      E^.EProc^ := @FThunkingCode^.Thunks[i];
+    Inc(E);
+    //--Inc(T);
+  end;
 end;
 
 procedure TDll.Unload;
@@ -427,22 +751,31 @@ begin
   Result := (Index >= 0) and (Index <= Count-1);
 end;
 
-procedure TDll.CheckIndex(Index: Integer);
+function TDll.CheckIndex(Index: Integer): Boolean;
 begin
-  if not ValidIndex(Index) then
-    Error(SIndexOutOfRange, [Index]);
+  Result := ValidIndex(Index);
+  if not Result then
+    {$IFNDEF _MINI_}
+    Error(Format(SIndexOutOfRange, [Index]));
+    {$ELSE}
+    Error(
+      'DLL-entry index out of range ('+IntToStr(Index)+')'
+    );
+    {$ENDIF !_MINI_}
 end;
 
 function TDll.GetProcs(Index: Integer): Pointer;
 begin
-  CheckIndex(Index);
-  Result := FEntries^[Index].Proc^;
+  if CheckIndex(Index) then
+    Result := FEntries[Index].EProc^
+  else
+    Result := nil;
 end;
 
 procedure TDll.SetProcs(Index: Integer; Value: Pointer);
 begin
-  CheckIndex(Index);
-  FEntries^[Index].Proc^ := Value;
+  if CheckIndex(Index) then
+    FEntries[Index].EProc^ := Value;
 end;
 
 function TDll.GetAvailable: Boolean;
@@ -456,10 +789,18 @@ begin
 end;
 
 function TDll.GetIndexFromProc(Proc: PPointer): Integer;
+var
+  E: PEntryEx;
 begin
-  for Result := 0 to Count-1 do
-    if FEntries^[Result].Proc = Proc then
-      Exit;
+  if Assigned(Proc) then
+  begin
+    for Result := 0 to Count-1 do
+    begin
+      E := @FEntries[Result];
+      if (E^.EProc = Proc) or (E^.DProc = Proc) then
+        Exit;
+    end;
+  end;
   Result := -1;
 end;
 
@@ -490,6 +831,116 @@ begin
   end;
 end;
 
+{$IFDEF _MINI_}
+
+{ TList }
+
+destructor TList.Destroy;
+begin
+  Clear;
+  inherited;
+end;
+
+function TList.Add(Item: Pointer): Integer;
+begin
+  Result := FCount;
+  if Result = FCapacity then
+    Grow;
+  FList^[Result] := Item;
+  Inc(FCount);
+end;
+
+procedure TList.Clear;
+begin
+  SetCount(0);
+  SetCapacity(0);
+end;
+
+procedure TList.Delete(Index: Integer);
+begin
+  if (Index < 0) or (Index >= FCount) then
+    Exit; //Error(@SListIndexError, Index);
+  Dec(FCount);
+  if Index < FCount then
+    System.Move(FList^[Index + 1], FList^[Index],
+      (FCount - Index) * SizeOf(Pointer));
+end;
+
+function TList.Get(Index: Integer): Pointer;
+begin
+  if (Index < 0) or (Index >= FCount) then
+    Result := nil //Error(@SListIndexError, Index)
+  else
+    Result := FList^[Index];
+end;
+
+procedure TList.Grow;
+var
+  Delta: Integer;
+begin
+  if FCapacity > 64 then
+    Delta := FCapacity div 4
+  else
+    if FCapacity > 8 then
+      Delta := 16
+    else
+      Delta := 4;
+  SetCapacity(FCapacity + Delta);
+end;
+
+function TList.IndexOf(Item: Pointer): Integer;
+begin
+  Result := 0;
+  while (Result < FCount) and (FList^[Result] <> Item) do
+    Inc(Result);
+  if Result = FCount then
+    Result := -1;
+end;
+
+procedure TList.Put(Index: Integer; Item: Pointer);
+begin
+  if (Index < 0) or (Index >= FCount) then
+    Exit; //Error(@SListIndexError, Index);
+  if Item <> FList^[Index] then
+    FList^[Index] := Item;
+end;
+
+function TList.Remove(Item: Pointer): Integer;
+begin
+  Result := IndexOf(Item);
+  if Result >= 0 then
+    Delete(Result);
+end;
+
+procedure TList.SetCapacity(NewCapacity: Integer);
+begin
+  if (NewCapacity < FCount) or (NewCapacity > MaxListSize) then
+    Exit; //Error(@SListCapacityError, NewCapacity);
+  if NewCapacity <> FCapacity then
+  begin
+    ReallocMem(FList, NewCapacity * SizeOf(Pointer));
+    FCapacity := NewCapacity;
+  end;
+end;
+
+procedure TList.SetCount(NewCount: Integer);
+var
+  I: Integer;
+begin
+  if (NewCount < 0) or (NewCount > MaxListSize) then
+    Exit; //Error(@SListCountError, NewCount);
+  if NewCount > FCapacity then
+    SetCapacity(NewCount);
+  if NewCount > FCount then
+    FillChar(FList^[FCount], (NewCount - FCount) * SizeOf(Pointer), 0)
+  else
+    for I := FCount - 1 downto NewCount do
+      Delete(I);
+  FCount := NewCount;
+end;
+
+{$ENDIF _MINI_}
+
 { TDlls }
 
 constructor TDlls.Create;
@@ -500,10 +951,15 @@ end;
 
 destructor TDlls.Destroy;
 var
-  i : Integer;
+  i: Integer;
+  Obj: TObject;
 begin
-  for i := Count-1 downto 0 do
-    Dlls[i].Free;
+  for i := FCount-1 downto 0 do
+  begin
+    Obj := Dlls[i];
+    FList^[i] := nil; // Put(i, nil);
+    Obj.Free;
+  end;
   FCodeHeap.Free;
   FCodeHeap := nil;
   inherited Destroy;
@@ -517,13 +973,16 @@ end;
 
 function TDlls.GetDlls(Index: Integer): TDll;
 begin
-  Result := TDll(Items[Index]);
+  Result := TDll(Get(Index));
 end;
 
 initialization
   Dlls := TDlls.Create;
 finalization
-  Dlls.Free;
+  try
+    Dlls.Free;
+  except
+  end;
   Dlls := nil;
 {$ENDIF SUPPORTED}
 end.

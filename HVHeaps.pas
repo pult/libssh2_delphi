@@ -1,3 +1,4 @@
+{ HVHeaps.pas } // version: 2020.0615.1000
 unit HVHeaps;
 //
 // https://github.com/pult/dll_load_delay
@@ -18,23 +19,43 @@ interface
 
 {$IFDEF MSWINDOWS}
 
-uses
-  Windows, Types;
-
 {$IFDEF FPC}
+  {.$WARNINGS OFF}
+  {.$HINTS OFF}
+
+  {$MODE OBJFPC}
+  //{$MODE DELPHI}
+  {$H+}
+  {-DEFINE UNICODE}    { optional }
+
+  {$B-,R-}
+  {$Q-}
+  {$J+}
+
+  {$ASSERTIONS OFF}
+
   {$ALIGN 8} // For packed record
   {$MINENUMSIZE 1}
-{$ELSE}
+{$ELSE !FPC}
   {$IFDEF UNICODE}
     {$ALIGN 8} // For packed record
     {$MINENUMSIZE 1}
 
-    {$IF CompilerVersion >= 25.00}{XE4Up}
-      {$ZEROBASEDSTRINGS OFF}
-    {$IFEND}
-
+    //{$IF CompilerVersion >= 25.00}{XE4Up}
+    //  {$ZEROBASEDSTRINGS OFF}
+    //{$IFEND}
   {$ENDIF}
-{$ENDIF}
+  {.$WARN UNSAFE_CODE OFF}
+  {.$WARN UNSAFE_TYPE OFF}
+  {.$WARN UNSAFE_CAST OFF}
+{$ENDIF !FPC}
+
+uses
+  Windows
+  {$IFNDEF FPC}
+  ,Types
+  {$ENDIF !FPC}
+  ;
 
 type
   // The TPrivateHeap class gives basic memory allocation capability
@@ -49,8 +70,8 @@ type
     function GetHandle: THandle;
   public
     destructor Destroy; override;
-    procedure GetMem(var P{: Pointer}; Size: DWORD); virtual;
-    procedure FreeMem(P: Pointer);
+    function GetMem(var P{: Pointer}; Size: DWORD): Boolean; virtual;
+    function FreeMem(P: Pointer): Boolean;
     function SizeOfMem(P: Pointer): DWORD;
     property Handle: THandle read GetHandle;
     property AllocationFlags: DWORD read FAllocationFlags write FAllocationFlags;
@@ -64,7 +85,7 @@ type
   // allocated with GetMem.
   TCodeHeap = class(TPrivateHeap)
   public
-    procedure GetMem(var P{: Pointer}; Size: DWORD); override;
+    function GetMem(var P{: Pointer}; Size: DWORD): Boolean; override;
   end;
 
 {$ENDIF MSWINDOWS}
@@ -73,55 +94,34 @@ implementation
 
 {$IFDEF MSWINDOWS}
 
-uses
-  //{$IFDEF VER93} // Delphi2
-  //D2Support,
-  //{$ENDIF}
-  SysUtils;
-
-function Win32Handle(Handle: THandle): THandle;
-begin
-  if Handle = 0 then
-    //RaiseLastWin32Error;
-    RaiseLastOsError;
-  Result := Handle;
-end;
-
-function Win32Pointer(P: Pointer): Pointer;
-begin
-  if P = nil then
-    //RaiseLastWin32Error;
-    RaiseLastOsError;
-  Result := P;
-end;
-
 { TPrivateHeap }
 
 destructor TPrivateHeap.Destroy;
 begin
   if FHandle <> 0 then
   begin
-    Win32Check(Windows.HeapDestroy(FHandle));
+    Windows.HeapDestroy(FHandle);
     FHandle := 0;
   end;
-  inherited Destroy;
+  inherited;
 end;
 
-procedure TPrivateHeap.FreeMem(P: Pointer);
+function TPrivateHeap.FreeMem(P: Pointer): Boolean;
 begin
-  Win32Check(Windows.HeapFree(Handle, 0, P));
+  Result := Windows.HeapFree(Handle, 0, P)
 end;
 
 function TPrivateHeap.GetHandle: THandle;
 begin
   if FHandle = 0 then
-    FHandle := Win32Handle(Windows.HeapCreate(0, 0, 0));
+    FHandle := Windows.HeapCreate(0, 0, 0);
   Result := FHandle;
 end;
 
-procedure TPrivateHeap.GetMem(var P{: Pointer}; Size: DWORD);
+function TPrivateHeap.GetMem(var P{: Pointer}; Size: DWORD): Boolean;
 begin
-  Pointer(P) := Win32Pointer(Windows.HeapAlloc(Handle, AllocationFlags, Size));
+  Pointer(P) := Windows.HeapAlloc(Handle, FAllocationFlags, Size);
+  Result := Pointer(P) <> nil;
 end;
 
 function TPrivateHeap.SizeOfMem(P: Pointer): DWORD;
@@ -134,12 +134,13 @@ end;
 
 { TCodeHeap }
 
-procedure TCodeHeap.GetMem(var P{: Pointer}; Size: DWORD);
+function TCodeHeap.GetMem(var P{: Pointer}; Size: DWORD): Boolean;
 var
   Dummy: DWORD;
 begin
-  inherited GetMem(P, Size);
-  Win32Check(Windows.VirtualProtect(Pointer(P), Size, PAGE_EXECUTE_READWRITE, @Dummy));
+  Result := inherited GetMem(P, Size);
+  if Result then
+    Result := Windows.VirtualProtect(Pointer(P), Size, PAGE_EXECUTE_READWRITE, @Dummy);
 end;
 
 initialization
