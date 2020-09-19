@@ -21,15 +21,16 @@ const
 }
 //*)
 
-{$SETPEFLAGS 20 // IMAGE_SIZEOF_FILE_HEADER
-  or $0002 // IMAGE_FILE_EXECUTABLE_IMAGE
-  or $0200 // IMAGE_FILE_DEBUG_STRIPPED
-  or $0004 // IMAGE_FILE_LINE_NUMS_STRIPPED
-  or $0008 // IMAGE_FILE_LOCAL_SYMS_STRIPPED
-  or $0001 // IMAGE_FILE_RELOCS_STRIPPED
-  or $0800 // IMAGE_FILE_NET_RUN_FROM_SWAP
-  or $0010 // IMAGE_FILE_AGGRESIVE_WS_TRIM
-}
+{$SETPEFLAGS 0
+//or $0014 // IMAGE_SIZEOF_FILE_HEADER            // -by defender
+//or $0002 // IMAGE_FILE_EXECUTABLE_IMAGE         // -by defender
+//or $0200 // IMAGE_FILE_DEBUG_STRIPPED           // -by defender
+//or $0004 // IMAGE_FILE_LINE_NUMS_STRIPPED       // -by defender
+//or $0008 // IMAGE_FILE_LOCAL_SYMS_STRIPPED      // -by defender
+//or $0001 // IMAGE_FILE_RELOCS_STRIPPED          // -by defender
+  or $0800 // IMAGE_FILE_NET_RUN_FROM_SWAP        // +by defender
+//or $0010 // IMAGE_FILE_AGGRESIVE_WS_TRIM        // -by defender
+}//*)
 
 {$IFDEF UNICODE}
   {$IFNDEF DEBUG}

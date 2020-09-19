@@ -1,5 +1,6 @@
 @rem NB: FOR WINDOWS NT ONLY
 @rem @setlocal ENABLEEXTENSIONS
+@prompt=^>^>  >nul
 
 @set xErrorTimeout=1
 
@@ -8,21 +9,24 @@
 @if "%xLang%"=="" for /F "tokens=1,2,3,4*" %%i in ('chcp') do @if "%%l"=="1251" set xLang=ru
 @if "%xLang%"=="" set xLang=en
 
-@set make_prj_ver=2017.0306.1527
+@set make_prj_ver=2020.0528.1447
 
 @rem #
-@rem # make_prj Version 2017.0306.1527
+@rem # make_prj Version 2020.0528.1447
 @rem # ================================
 @rem # Description(EN):
 @rem # ================================
-@rem # Compilation: Delphi/C++Builder" projects/modules/packages for other platforms (win32,win64,android,osx,iox).
+@rem # Compilation: Delphi/C++Builder" projects/modules/packages for other platforms (win x86/x64,android arm32,osx,ios,linux).
 @rem # For show help run without parameters.
 @rem #
 @rem # Description(RU):
 @rem # Описание
 @rem # ================================
-@rem # Компиляция: Delphi/C++Builder/Kylix" pas модулей/проектов для различных платформ (win32,win64,android,osx,iox).
+@rem # Компиляция: Delphi/C++Builder/Kylix" pas модулей/проектов для различных платформ (win x86/x64,android arm32,osx,ios,linux).
 @rem # Запустите без параметров для справки.
+@rem #
+@rem # Copyright (c) 1998-2019
+@rem # by "Vadim V.Lopushanskiy" <pult@ukr.net>
 @rem #
 
 @if "%IGNOREERRORLEVEL%"=="" @(
@@ -43,7 +47,7 @@
 
 :L_CLEAN
 @del dcc*.log >nul 2>nul
-@del /Q *.tds *.lsp *.ejf *.drc *.vsr *.~* >nul 2>nul
+@del /Q *.tds *.lsp *.ejf *.drc *.vsr *.dex *.~* >nul 2>nul
 @del *.bpi >nul 2>nul
 @del /Q *.map *.jdbg *.pdb *.rsm >nul 2>nul
 @del /Q *.dcp *.dcpil *.dcu *.dpu *.dcuil *.lib *.bpi *.obj *.o *.a  >nul 2>nul
@@ -119,12 +123,12 @@
 ) else @if %project_ext%==dpr @(
   set project_ext=dpr
   set project_type=p_dpr
-@rem ) else @if %project_ext%==dpk @(
-@rem   set project_ext=dpk
-@rem   set project_type=p_dpk
-@rem ) else @if %project_ext%==lpr @(
-@rem   set project_ext=lpr
-@rem   set project_type=p_lpr
+) else @if %project_ext%==dpk @(
+  set project_ext=dpk
+  set project_type=p_dpk
+) else @if %project_ext%==lpr @(
+  set project_ext=lpr
+  set project_type=p_lpr
 ) else @if %project_ext%==rps @(
   set project_ext=rps
   set project_type=p_pas
@@ -199,6 +203,7 @@
 @set ndklibpath=
 @set XOS=win
 @set plfm=w32
+@set plfmP=win32
 @set slib=\win32
 
 @set pd=\
@@ -263,6 +268,13 @@
 @if "%DVER%"=="D4"     set DVER=4
 @if "%DVER%"=="D3"     set DVER=3
 @if "%DVER%"==""       set DVER=0
+
+@if "%DVER%"=="30linux" set DVER=30lx64
+@if "%DVER%"=="29linux" set DVER=29lx64
+@if "%DVER%"=="28linux" set DVER=28lx64
+@if "%DVER%"=="27linux" set DVER=27lx64
+@if "%DVER%"=="26linux" set DVER=26lx64
+@if "%DVER%"=="25linux" set DVER=25lx64
 
 @if "%DVER%"=="30arm"  set DVER=30arm32
 @if "%DVER%"=="29arm"  set DVER=29arm32
@@ -331,14 +343,25 @@
 @if "%DVER%" NEQ "30w64" goto L_30w64_Done
 @set DVER=30
 @set plfm=w64
+@set plfmP=win64
 @set slib=\win64
 @goto L_PLFM
 :L_30w64_Done
+
+@if "%DVER%" NEQ "30lx64" goto L_30lx64_Done
+@set DVER=30
+@set XOS=linux
+@set plfm=linux64
+@set plfmP=linux64
+@set slib=\linux64
+@goto L_PLFM
+:L_30lx64_Done
 
 @if "%DVER%" NEQ "30aarm32" goto L_30aarm32_Done
 @set DVER=30
 @set XOS=android
 @set plfm=aarm32
+@set plfmP=android
 @set slib=\android
 @goto L_PLFM
 :L_30aarm32_Done
@@ -347,6 +370,7 @@
 @set DVER=30
 @set XOS=osx
 @set plfm=osx32
+@set plfmP=osx32
 @set slib=\osx32
 @goto L_PLFM
 :L_30osx32_Done
@@ -355,6 +379,7 @@
 @set DVER=30
 @set XOS=ios
 @set plfm=iosarm32
+@set plfmP=iosDevice32
 @set slib=\iosDevice32
 @goto L_PLFM
 :L_30iosarm32_Done
@@ -363,6 +388,7 @@
 @set DVER=30
 @set XOS=ios
 @set plfm=iosarm64
+@set plfmP=iosDevice64
 @set slib=\iosDevice64
 @goto L_PLFM
 :L_30iosarm64_Done
@@ -371,6 +397,7 @@
 @set DVER=30
 @set XOS=ios
 @set plfm=ioss32
+@set plfmP=iossimulator
 @set slib=\iossimulator
 @goto L_PLFM
 :L_30ioss32_Done
@@ -378,14 +405,25 @@
 @if "%DVER%" NEQ "29w64" goto L_29w64_Done
 @set DVER=29
 @set plfm=w64
+@set plfmP=win64
 @set slib=\win64
 @goto L_PLFM
 :L_29w64_Done
+
+@if "%DVER%" NEQ "29lx64" goto L_29lx64_Done
+@set DVER=29
+@set XOS=linux
+@set plfm=linux64
+@set plfmP=linux64
+@set slib=\linux64
+@goto L_PLFM
+:L_29lx64_Done
 
 @if "%DVER%" NEQ "29aarm32" goto L_29aarm32_Done
 @set DVER=29
 @set XOS=android
 @set plfm=aarm32
+@set plfmP=android
 @set slib=\android
 @goto L_PLFM
 :L_29aarm32_Done
@@ -394,6 +432,7 @@
 @set DVER=29
 @set XOS=osx
 @set plfm=osx32
+@set plfmP=osx32
 @set slib=\osx32
 @goto L_PLFM
 :L_29osx32_Done
@@ -402,6 +441,7 @@
 @set DVER=29
 @set XOS=ios
 @set plfm=iosarm32
+@set plfmP=iosDevice32
 @set slib=\iosDevice32
 @goto L_PLFM
 :L_29iosarm32_Done
@@ -410,6 +450,7 @@
 @set DVER=29
 @set XOS=ios
 @set plfm=iosarm64
+@set plfmP=iosDevice64
 @set slib=\iosDevice64
 @goto L_PLFM
 :L_29iosarm64_Done
@@ -418,6 +459,7 @@
 @set DVER=29
 @set XOS=ios
 @set plfm=ioss32
+@set plfmP=iossimulator
 @set slib=\iossimulator
 @goto L_PLFM
 :L_29ioss32_Done
@@ -425,14 +467,25 @@
 @if "%DVER%" NEQ "28w64" goto L_28w64_Done
 @set DVER=28
 @set plfm=w64
+@set plfmP=win64
 @set slib=\win64
 @goto L_PLFM
 :L_28w64_Done
+
+@if "%DVER%" NEQ "28lx64" goto L_28lx64_Done
+@set DVER=28
+@set XOS=linux
+@set plfm=linux64
+@set plfmP=linux64
+@set slib=\linux64
+@goto L_PLFM
+:L_28lx64_Done
 
 @if "%DVER%" NEQ "28aarm32" goto L_28aarm32_Done
 @set DVER=28
 @set XOS=android
 @set plfm=aarm32
+@set plfmP=android
 @set slib=\android
 @goto L_PLFM
 :L_28aarm32_Done
@@ -441,6 +494,7 @@
 @set DVER=28
 @set XOS=osx
 @set plfm=osx32
+@set plfmP=osx32
 @set slib=\osx32
 @goto L_PLFM
 :L_28osx32_Done
@@ -449,6 +503,7 @@
 @set DVER=28
 @set XOS=ios
 @set plfm=iosarm32
+@set plfmP=iosDevice32
 @set slib=\iosDevice32
 @goto L_PLFM
 :L_28iosarm32_Done
@@ -457,6 +512,7 @@
 @set DVER=28
 @set XOS=ios
 @set plfm=iosarm64
+@set plfmP=iosDevice64
 @set slib=\iosDevice64
 @goto L_PLFM
 :L_28iosarm64_Done
@@ -465,6 +521,7 @@
 @set DVER=28
 @set XOS=ios
 @set plfm=ioss32
+@set plfmP=iossimulator
 @set slib=\iossimulator
 @goto L_PLFM
 :L_28ioss32_Done
@@ -472,14 +529,25 @@
 @if "%DVER%" NEQ "27w64" goto L_27w64_Done
 @set DVER=27
 @set plfm=w64
+@set plfmP=win64
 @set slib=\win64
 @goto L_PLFM
 :L_27w64_Done
+
+@if "%DVER%" NEQ "27lx64" goto L_27lx64_Done
+@set DVER=27
+@set XOS=linux
+@set plfm=linux64
+@set plfmP=linux64
+@set slib=\linux64
+@goto L_PLFM
+:L_27lx64_Done
 
 @if "%DVER%" NEQ "27aarm32" goto L_27aarm32_Done
 @set DVER=27
 @set XOS=android
 @set plfm=aarm32
+@set plfmP=android
 @set slib=\android
 @goto L_PLFM
 :L_27aarm32_Done
@@ -488,6 +556,7 @@
 @set DVER=27
 @set XOS=osx
 @set plfm=osx32
+@set plfmP=osx32
 @set slib=\osx32
 @goto L_PLFM
 :L_27osx32_Done
@@ -496,6 +565,7 @@
 @set DVER=27
 @set XOS=ios
 @set plfm=iosarm32
+@set plfmP=iosDevice32
 @set slib=\iosDevice32
 @goto L_PLFM
 :L_27iosarm32_Done
@@ -504,6 +574,7 @@
 @set DVER=27
 @set XOS=ios
 @set plfm=iosarm64
+@set plfmP=iosDevice64
 @set slib=\iosDevice64
 @goto L_PLFM
 :L_27iosarm64_Done
@@ -512,6 +583,7 @@
 @set DVER=27
 @set XOS=ios
 @set plfm=ioss32
+@set plfmP=iossimulator
 @set slib=\iossimulator
 @goto L_PLFM
 :L_27ioss32_Done
@@ -519,14 +591,25 @@
 @if "%DVER%" NEQ "26w64" goto L_26w64_Done
 @set DVER=26
 @set plfm=w64
+@set plfmP=win64
 @set slib=\win64
 @goto L_PLFM
 :L_26w64_Done
+
+@if "%DVER%" NEQ "26lx64" goto L_26lx64_Done
+@set DVER=26
+@set XOS=linux
+@set plfm=linux64
+@set plfmP=linux64
+@set slib=\linux64
+@goto L_PLFM
+:L_26lx64_Done
 
 @if "%DVER%" NEQ "26aarm32" goto L_26aarm32_Done
 @set DVER=26
 @set XOS=android
 @set plfm=aarm32
+@set plfmP=android
 @set slib=\android
 @goto L_PLFM
 :L_26aarm32_Done
@@ -535,6 +618,7 @@
 @set DVER=26
 @set XOS=osx
 @set plfm=osx32
+@set plfmP=osx32
 @set slib=\osx32
 @goto L_PLFM
 :L_26osx32_Done
@@ -543,6 +627,7 @@
 @set DVER=26
 @set XOS=ios
 @set plfm=iosarm32
+@set plfmP=iosDevice32
 @set slib=\iosDevice32
 @goto L_PLFM
 :L_26iosarm32_Done
@@ -551,6 +636,7 @@
 @set DVER=26
 @set XOS=ios
 @set plfm=iosarm64
+@set plfmP=iosDevice64
 @set slib=\iosDevice64
 @goto L_PLFM
 :L_26iosarm64_Done
@@ -559,21 +645,34 @@
 @set DVER=26
 @set XOS=ios
 @set plfm=ioss32
+@set plfmP=iossimulator
 @set slib=\iossimulator
 @goto L_PLFM
 :L_26ioss32_Done
 
+@rem DX 10.2 Tokyo
 @if "%DVER%" NEQ "25w64" goto L_25w64_Done
 @set DVER=25
 @set plfm=w64
+@set plfmP=win64
 @set slib=\win64
 @goto L_PLFM
 :L_25w64_Done
+
+@if "%DVER%" NEQ "25lx64" goto L_25lx64_Done
+@set DVER=25
+@set XOS=linux
+@set plfm=linux64
+@set plfmP=linux64
+@set slib=\linux64
+@goto L_PLFM
+:L_25lx64_Done
 
 @if "%DVER%" NEQ "25aarm32" goto L_25aarm32_Done
 @set DVER=25
 @set XOS=android
 @set plfm=aarm32
+@set plfmP=android
 @set slib=\android
 @goto L_PLFM
 :L_25aarm32_Done
@@ -582,6 +681,7 @@
 @set DVER=25
 @set XOS=osx
 @set plfm=osx32
+@set plfmP=osx32
 @set slib=\osx32
 @goto L_PLFM
 :L_25osx32_Done
@@ -590,6 +690,7 @@
 @set DVER=25
 @set XOS=ios
 @set plfm=iosarm32
+@set plfmP=iosDevice32
 @set slib=\iosDevice32
 @goto L_PLFM
 :L_25iosarm32_Done
@@ -598,6 +699,7 @@
 @set DVER=25
 @set XOS=ios
 @set plfm=iosarm64
+@set plfmP=iosDevice64
 @set slib=\iosDevice64
 @goto L_PLFM
 :L_25iosarm64_Done
@@ -606,13 +708,16 @@
 @set DVER=25
 @set XOS=ios
 @set plfm=ioss32
+@set plfmP=iossimulator
 @set slib=\iossimulator
 @goto L_PLFM
 :L_25ioss32_Done
 
+@rem DX 10.1 Berlin
 @if "%DVER%" NEQ "24w64" goto L_24w64_Done
 @set DVER=24
 @set plfm=w64
+@set plfmP=win64
 @set slib=\win64
 @goto L_PLFM
 :L_24w64_Done
@@ -621,6 +726,7 @@
 @set DVER=24
 @set XOS=android
 @set plfm=aarm32
+@set plfmP=android
 @set slib=\android
 @goto L_PLFM
 :L_24aarm32_Done
@@ -629,6 +735,7 @@
 @set DVER=24
 @set XOS=osx
 @set plfm=osx32
+@set plfmP=osx32
 @set slib=\osx32
 @goto L_PLFM
 :L_24osx32_Done
@@ -637,6 +744,7 @@
 @set DVER=24
 @set XOS=ios
 @set plfm=iosarm32
+@set plfmP=iosDevice32
 @set slib=\iosDevice32
 @goto L_PLFM
 :L_24iosarm32_Done
@@ -645,6 +753,7 @@
 @set DVER=24
 @set XOS=ios
 @set plfm=iosarm64
+@set plfmP=iosDevice64
 @set slib=\iosDevice64
 @goto L_PLFM
 :L_24iosarm64_Done
@@ -653,13 +762,16 @@
 @set DVER=24
 @set XOS=ios
 @set plfm=ioss32
+@set plfmP=iossimulator
 @set slib=\iossimulator
 @goto L_PLFM
 :L_24ioss32_Done
 
+@rem DX 10
 @if "%DVER%" NEQ "23w64" goto L_23w64_Done
 @set DVER=23
 @set plfm=w64
+@set plfmP=win64
 @set slib=\win64
 @goto L_PLFM
 :L_23w64_Done
@@ -668,6 +780,7 @@
 @set DVER=23
 @set XOS=android
 @set plfm=aarm32
+@set plfmP=android
 @set slib=\android
 @goto L_PLFM
 :L_23aarm32_Done
@@ -676,6 +789,7 @@
 @set DVER=23
 @set XOS=osx
 @set plfm=osx32
+@set plfmP=osx32
 @set slib=\osx32
 @goto L_PLFM
 :L_23osx32_Done
@@ -684,6 +798,7 @@
 @set DVER=23
 @set XOS=ios
 @set plfm=iosarm32
+@set plfmP=iosDevice32
 @set slib=\iosDevice32
 @goto L_PLFM
 :L_23iosarm32_Done
@@ -692,6 +807,7 @@
 @set DVER=23
 @set XOS=ios
 @set plfm=iosarm64
+@set plfmP=iosDevice64
 @set slib=\iosDevice64
 @goto L_PLFM
 :L_23iosarm64_Done
@@ -700,6 +816,7 @@
 @set DVER=23
 @set XOS=ios
 @set plfm=ioss32
+@set plfmP=iossimulator
 @set slib=\iossimulator
 @goto L_PLFM
 :L_23ioss32_Done
@@ -708,6 +825,7 @@
 @if "%DVER%" NEQ "22w64" goto L_22w64_Done
 @set DVER=22
 @set plfm=w64
+@set plfmP=wn64
 @set slib=\win64
 @goto L_PLFM
 :L_22w64_Done
@@ -717,6 +835,7 @@
 @set DVER=22
 @set XOS=android
 @set plfm=aarm32
+@set plfmP=android
 @set slib=\android
 @goto L_PLFM
 :L_22aarm32_Done
@@ -726,6 +845,7 @@
 @set DVER=22
 @set XOS=osx
 @set plfm=osx32
+@set plfmP=osx32
 @set slib=\osx32
 @goto L_PLFM
 :L_22osx32_Done
@@ -734,6 +854,7 @@
 @set DVER=22
 @set XOS=ios
 @set plfm=iosarm32
+@set plfmP=iosDevice
 @set slib=\iosDevice
 @goto L_PLFM
 :L_22iosarm32_Done
@@ -742,6 +863,7 @@
 @set DVER=22
 @set XOS=ios
 @set plfm=iosarm64
+@set plfmP=iosDevice64
 @set slib=\iosDevice64
 @goto L_PLFM
 :L_22iosarm64_Done
@@ -751,6 +873,7 @@
 @set DVER=22
 @set XOS=ios
 @set plfm=ioss32
+@set plfmP=iossimulator
 @set slib=\iossimulator
 @goto L_PLFM
 :L_22ioss32_Done
@@ -759,6 +882,7 @@
 @if "%DVER%" NEQ "21w64" goto L_21w64_Done
 @set DVER=21
 @set plfm=w64
+@set plfmP=win64
 @set slib=\win64
 @goto L_PLFM
 :L_21w64_Done
@@ -768,6 +892,7 @@
 @set DVER=21
 @set XOS=android
 @set plfm=aarm32
+@set plfmP=android
 @set slib=\android
 @goto L_PLFM
 :L_21aarm32_Done
@@ -777,6 +902,7 @@
 @set DVER=21
 @set XOS=osx
 @set plfm=osx32
+@set plfmP=osx32
 @set slib=\osx32
 @goto L_PLFM
 :L_21osx32_Done
@@ -785,6 +911,7 @@
 @set DVER=21
 @set XOS=ios
 @set plfm=iosarm32
+@set plfmP=iosDevice
 @set slib=\iosDevice
 @goto L_PLFM
 :L_21iosarm32_Done
@@ -799,6 +926,7 @@
 @set DVER=21
 @set XOS=ios
 @set plfm=ioss32
+@set plfmP=iossimulator
 @set slib=\iossimulator
 @goto L_PLFM
 :L_21ioss32_Done
@@ -807,6 +935,7 @@
 @if "%DVER%" NEQ "20w64" goto L_20w64_Done
 @set DVER=20
 @set plfm=w64
+@set plfmP=win64
 @set slib=\win64
 @goto L_PLFM
 :L_20w64_Done
@@ -816,6 +945,7 @@
 @set DVER=20
 @set XOS=android
 @set plfm=aarm32
+@set plfmP=android
 @set slib=\android
 @goto L_PLFM
 :L_20aarm32_Done
@@ -825,6 +955,7 @@
 @set DVER=20
 @set XOS=osx
 @set plfm=osx32
+@set plfmP=osx32
 @set slib=\osx32
 @goto L_PLFM
 :L_20osx32_Done
@@ -833,6 +964,7 @@
 @set DVER=20
 @set XOS=ios
 @set plfm=iosarm32
+@set plfmP=iosDevice
 @set slib=\iosDevice
 @goto L_PLFM
 :L_20iosarm32_Done
@@ -847,6 +979,7 @@
 @set DVER=20
 @set XOS=ios
 @set plfm=ioss32
+@set plfmP=iossimulator
 @set slib=\iossimulator
 @goto L_PLFM
 :L_20ioss32_Done
@@ -855,6 +988,7 @@
 @if "%DVER%" NEQ "19w64" goto L_19w64_Done
 @set DVER=19
 @set plfm=w64
+@set plfmP=win64
 @set slib=\win64
 @goto L_PLFM
 :L_19w64_Done
@@ -864,6 +998,7 @@
 @set DVER=19
 @set XOS=android
 @set plfm=aarm32
+@set plfmP=android
 @set slib=\android
 @goto L_PLFM
 :L_19aarm32_Done
@@ -873,6 +1008,7 @@
 @set DVER=19
 @set XOS=osx
 @set plfm=osx32
+@set plfmP=osx32
 @set slib=\osx32
 @goto L_PLFM
 :L_19osx32_Done
@@ -881,6 +1017,7 @@
 @set DVER=19
 @set XOS=ios
 @set plfm=iosarm32
+@set plfmP=iosDevice
 @set slib=\iosDevice
 @goto L_PLFM
 :L_19iosarm32_Done
@@ -895,6 +1032,7 @@
 @set DVER=19
 @set XOS=ios
 @set plfm=ioss32
+@set plfmP=iossimulator
 @set slib=\iossimulator
 @goto L_PLFM
 :L_19ioss32_Done
@@ -903,6 +1041,7 @@
 @if "%DVER%" NEQ "18w64" goto L_18w64_Done
 @set DVER=18
 @set plfm=w64
+@set plfmP=win64
 @set slib=\win64
 @goto L_PLFM
 :L_18w64_Done
@@ -918,6 +1057,7 @@
 @set DVER=18
 @set XOS=osx
 @set plfm=osx32
+@set plfmP=osx32
 @set slib=\osx32
 @goto L_PLFM
 :L_18osx32_Done
@@ -926,6 +1066,7 @@
 @set DVER=18
 @set XOS=ios
 @set plfm=iosarm32
+@set plfmP=iosDevice
 @set slib=\iosDevice
 @goto L_PLFM
 :L_18iosarm32_Done
@@ -940,6 +1081,7 @@
 @set DVER=18
 @set XOS=ios
 @set plfm=ioss32
+@set plfmP=iossimulator
 @set slib=\iossimulator
 @goto L_PLFM
 :L_18ioss32_Done
@@ -948,6 +1090,7 @@
 @if "%DVER%" NEQ "17w64" goto L_17w64_Done
 @set DVER=17
 @set plfm=w64
+@set plfmP=win64
 @set slib=\win64
 @goto L_PLFM
 :L_17w64_Done
@@ -957,6 +1100,7 @@
 @set DVER=17
 @set XOS=osx
 @set plfm=osx32
+@set plfmP=osx32
 @set slib=\osx32
 @goto L_PLFM
 :L_17osx32_Done
@@ -965,6 +1109,7 @@
 @if "%DVER%" NEQ "16w64" goto L_16w64_Done
 @set DVER=16
 @set plfm=w64
+@set plfmP=win64
 @set slib=\win64
 @goto L_PLFM
 :L_16w64_Done
@@ -974,13 +1119,14 @@
 @set DVER=16
 @set XOS=osx
 @set plfm=osx32
+@set plfmP=osx32
 @set slib=\osx32
 @rem @goto L_PLFM
 :L_16osx32_Done
 
 :L_PLFM
 @rem @echo DBG: %%XOS%%=%XOS%>con
-@if "%XOS%" NEQ "win" set Fmx=1
+@if "%XOS%" NEQ "win" if "%XOS%" NEQ "linux" if "%CrossVCL%" neq "1" set Fmx=1
 
 @rem XE
 @if %DVER% LEQ 15 set slib=
@@ -1024,7 +1170,13 @@
 :L_IDE_NAME_XE
 @set xe=
 @if %DVER% GEQ 16  set /a xe=%DVER%-14
+@if %DVER% GEQ 23  goto L_IDE_NAME_DXX
 @if %DVER% GEQ 15  set ide_name=RAD Studio XE%xe%
+
+:L_IDE_NAME_DXX
+@set dxx=
+@if %DVER% GEQ 23  set /a dxx=%DVER%-23
+@if %DVER% GEQ 23  set ide_name=RAD Studio DX10.%dxx%
 
 @if %DVER% GEQ 14 if %DVER% LEQ 19 set /a DVER-=1
 @if %DVER% GEQ 9  set /a DVER-=6
@@ -1080,13 +1232,21 @@
 @goto L_PATH_KYLIX
 
 :L_PATH_FROM_REG
+@rem NB: !!! Failed cmd compilation when DELPHI_ROOTDIR is very long !!!
+@rem NB: !!! Expanded path contains short names only:
+@rem :
 @rem 1
+@rem @set AsShort=1
 @rem @for /F "skip=2 tokens=1,2,3*" %%i in ('REG QUERY "%KEY%%REGPATH%\%DVER%.0" /v RootDir') do if "%%i"=="RootDir" @set DELPHI_ROOTDIR=%%~dpsk
+@rem @if "%AsShort%"=="1" @if "%DELPHI_ROOTDIR%" neq "" for %%i in ("%DELPHI_ROOTDIR%") do @set DELPHI_ROOTDIR=%%~si
+@rem @echo DELPHI_ROOTDIR="%DELPHI_ROOTDIR%">con
 @rem @call :RemoveRigthSplash DELPHI_ROOTDIR
 @rem 2
-@call :GetRegValuePath "%KEY%%REGPATH%\%DVER%.0" RootDir DELPHI_ROOTDIR
-@rem .
+@set AsShort=0
+@call :GetRegValuePath "%KEY%%REGPATH%\%DVER%.0" RootDir DELPHI_ROOTDIR %AsShort%
 @echo DELPHI_ROOTDIR="%DELPHI_ROOTDIR%">con
+@if "%AsShort%" neq "1" @if "%DELPHI_ROOTDIR%" neq "" for %%i in ("%DELPHI_ROOTDIR%") do @set DELPHI_ROOTDIR=%%~si
+@rem .
 @if "%DELPHI_ROOTDIR%"=="" goto L_ERROR_DX_ROOTDIR
 :L_PATH_FROM_REG_DONE
 
@@ -1141,6 +1301,9 @@
 @if "%DEBUG%" == "1" set DBG=1
 @if "%DEBUG%" NEQ "1" if "%TRACE_STACK_SOURCE%"=="1" set DBG=1
 
+@if .%DBG%==.1 if "%DCC_OPTMZ%" NEQ "0" set DCC_OPTMZ=0
+@if %DXVER% GEQ 27 if "%DCC_OPTMZ%" NEQ "2" set DCC_OPTMZ=0
+
 @rem define Library path:
 
 @if "%Platform%"=="D.Net1" goto L_SRC_DNET
@@ -1162,6 +1325,10 @@
   if "%plfm%"=="iosarm64" set PLIB=\iosDevice64
 )
 
+@if "%DXVER%" NEQ "?" if %DXVER% GEQ 25 @(
+  if "%plfm%"=="linux64" set PLIB=\linux64
+)
+
 @set PLIB=lib%PLIB%
 @if "%DXVER%" NEQ "?" if %DXVER% GEQ 15 set PREL=\release
 @if .%DBG%==.1 set DLib=%UserLib%;%DELPHI_ROOTDIR%\%PLIB%\debug
@@ -1172,9 +1339,11 @@
 @if exist "%DELPHI_ROOTDIR%\projects\bpl\" set DLib=%DLib%;%DELPHI_ROOTDIR%\projects\bpl
 @if "%XOS%"=="win" set DLib=%DLib%;%DELPHI_ROOTDIR%\source\toolsapi
   @rem set DLib=%DLib%;%DELPHI_ROOTDIR%\bin\system32
-@if "%XOS%"=="win" if "%indy%" ==  "09" @set DLib=%DLib%;%DELPHI_ROOTDIR%\%PLIB%\indy9
-@if "%XOS%"=="win" if "%indy%" NEQ "09" @set DLib=%DLib%;%DELPHI_ROOTDIR%\%PLIB%\indy10
 
+@if "%XOS%"=="win" if "%DXVER%" NEQ "?" if %DXVER% LEQ 17 @(
+  if "%indy%" ==  "09" @set DLib=%DLib%;%DELPHI_ROOTDIR%\%PLIB%\indy9
+  if "%indy%" NEQ "09" @set DLib=%DLib%;%DELPHI_ROOTDIR%\%PLIB%\indy10
+)
 @goto L_SRC_DONE
 
 :L_SRC_DELPHI_NET
@@ -1241,12 +1410,15 @@
 @rem @if %DXVER% GEQ 15 set DCC_OPT= %DCC_OPT% --legacy-ifend --inline:auto --zero-based-strings-
 
 @if %DXVER% LEQ 15 goto L_NS_DONE
-@set t=-NSSystem;Xml;Data;Datasnap;Web;Web.Win;Soap.Win
+@set t=-NSSystem;Xml;Data;Datasnap;Web;Soap
+@if "%XOS%"=="win" set t=%t%;Web.Win;Soap.Win
 @if "%XOS%"=="win" set t=%t%;Winapi;System.Win;Data.Win
 @if "%XOS%"=="win" if %DXVER% LEQ 19 set t=%t%;BDE
 @if "%XOS%"=="win" set t=%t%;Xml.Win;Web.Win
+@if %DXVER% GEQ 16 set t=%t%;IBX
+@rem @if "%XOS%"=="win" @if "%CrossVCL%"=="1" ( TODO: ... )
 
-@if %Fmx% NEQ 1 if "%XOS%"=="win" set t=%t%;Vcl;Vcl.Imaging;Vcl.Touch;Vcl.Shell;VCLTee
+@if %Fmx% NEQ 1 if "%XOS%"=="win" set t=%t%;Vcl;Vcl.Imaging;Vcl.Touch;Vcl.Shell;VCLTee;Vcl.Samples
 @if %Fmx% NEQ 0 set t=%t%;Fmx
 @set DCC_OPT=%DCC_OPT% %t%
 :L_NS_DONE
@@ -1303,6 +1475,9 @@
 @set dccName=dcc32
 @if "%plfm%"=="w64" set dccName=dcc64
 
+@rem Linux
+@if "%plfm%"=="linux64" set dccName=dcclinux64
+
 @rem Android
 @if "%plfm%"=="aarm32" set dccName=dccaarm
 @if "%plfm%"=="aarm64" set dccName=dccaarm64
@@ -1320,12 +1495,19 @@
 
 @set dccName=%dccName%.exe
 
-@if "%DEBUG%"=="1"      set DCC_OPT=%DCC_OPT% -DDEBUG;_DEBUG_
-@if "%DEBUG%"=="0"      set DCC_OPT=%DCC_OPT% -$D-
 @rem ,$C-,O+
-@if "%DEBUG%" NEQ "0"   set DCC_OPT=%DCC_OPT% -$D+,L+,Y+,C-,O-
-@if "%MAPFILE%"=="1"    set DCC_OPT=%DCC_OPT% -GD
-@if "%UserCOpt%" NEQ "" set DCC_OPT=%DCC_OPT% %UserCOpt%
+@if .%DBG%==.1            set DCC_OPT=%DCC_OPT% -DDEBUG;_DEBUG_ -$D+,L+,C-
+@if .%DBG%==.0            set DCC_OPT=%DCC_OPT% -$D-
+@if "%DCC_OPTMZ%" GEQ "1" set DCC_OPT=%DCC_OPT% -$O+
+@if "%DCC_OPTMZ%"=="0"    set DCC_OPT=%DCC_OPT% -$O-
+@if "%MAPFILE%"=="1"      set DCC_OPT=%DCC_OPT% -GD
+@if "%UserCOpt%" NEQ ""   set DCC_OPT=%DCC_OPT% %UserCOpt%
+
+@rem -J -JL -JPHNE
+@rem @if "%XOS%"=="osx" set DCC_OPT=%DCC_OPT% -J -JL
+@rem @if "%XOS%"=="ios" set DCC_OPT=%DCC_OPT% -J -JL
+@rem @if "%XOS%"=="android" set DCC_OPT=%DCC_OPT% -J -JL
+@rem @if "%XOS%"=="linux" set DCC_OPT=%DCC_OPT% -J -JL
 
 @rem set DCC_OPT=-Q -M -B %DCC_OPT%
 @set DCC_OPT=-M -B %DCC_OPT%
@@ -1363,7 +1545,8 @@
 @if not exist "%project_name%.map" goto L_BUILD_DONE
 @if "%MakeJclDbgP%" neq "" if not exist "%MakeJclDbgP%"MakeJclDbg.exe set MakeJclDbgP=
 @if "%MakeJclDbgO%"=="" set MakeJclDbgO=-J
-@echo MakeJclDbg.exe %MakeJclDbgO% %project%
+@if "%DEBUG_BATCH%"=="1" @echo "%MakeJclDbgP%MakeJclDbg.exe" %MakeJclDbgO% %project%
+@if "%DEBUG_BATCH%" neq "1" @echo "%MakeJclDbgP%MakeJclDbg.exe" %MakeJclDbgO% %project%
 @if "%JDBG%"=="1" call "%MakeJclDbgP%"MakeJclDbg.exe %MakeJclDbgO% %project%
 
 @goto L_BUILD_DONE
@@ -1395,11 +1578,13 @@
 @if "%DVER%"=="6" set BDFIX=;VER140;BCB
 
 @set DCC_OPT=-$J+,R-,I-,Q-,Y-,B-,A+,W-,U-,T-,H+,X+,P+,V+
+@if .%DBG%==.0            set DCC_OPT=%DCC_OPT%,D-,C-
+@if .%DBG%==.1            set DCC_OPT=%DCC_OPT%,D+,L+,C-
+@if "%DCC_OPTMZ%" GEQ "1" set DCC_OPT=%DCC_OPT%,O+
+@if "%DCC_OPTMZ%"=="0"    set DCC_OPT=%DCC_OPT%,O-
 
-@if .%DBG%==.0          set DCC_OPT=%DCC_OPT%,D-,$C-,O+
-@if .%DBG%==.1          set DCC_OPT=%DCC_OPT%,D+,L+,C-,O-
-@if "%MAPFILE%"=="1"    set DCC_OPT=%DCC_OPT% -GD
-@if "%UserCOpt%" NEQ "" set DCC_OPT=%DCC_OPT% %UserCOpt%
+@if "%MAPFILE%"=="1"      set DCC_OPT=%DCC_OPT% -GD
+@if "%UserCOpt%" NEQ ""   set DCC_OPT=%DCC_OPT% %UserCOpt%
 
 @set DCC_OPT=-JPHN %DCC_OPT%
 @rem @set DCC_OPT=-M %DCC_OPT%
@@ -1470,8 +1655,11 @@
   @echo   make_prj.cmd  "delphi-compiler"  "project_file|?" ["options"]>con
   @echo Где:>con
   @echo   [1] delphi-compiler:>con
-  @echo        22       - Delphi XE8  for win32>con
-  @echo        22w64    - Delphi XE8  for win64>con
+  @echo        26       - Delphi 10.3 for win32>con
+  @echo        26w32    - Delphi 10.3 for win32>con
+  @echo        24w64    - Delphi 10.1 for win64>con
+  @echo        25linux  - Delphi 10.2 for linux64>con
+  @echo        25lx64   - Delphi 10.2 for linux64>con
   @echo        22arm32  - Delphi XE8  for arm32>con
   @echo        22osx32  - Delphi XE8  for osx32>con
   @echo        22ios32  - Delphi XE8  for iOS arm 32>con
@@ -1536,8 +1724,11 @@
   @echo   make_prj.cmd  "delphi-compiler"  "project_file|?" ["options"]>con
   @echo Where:>con
   @echo   [1] delphi-compiler:>con
-  @echo        22         - Delphi XE8  for win32>con
-  @echo        22w64      - Delphi XE8  for win64>con
+  @echo        26         - Delphi 10.3 for win32>con
+  @echo        26w32      - Delphi 10.3 for win32>con
+  @echo        24w64      - Delphi 10.1 for win64>con
+  @echo        25linux    - Delphi 10.2 for linux64>con
+  @echo        25lx64     - Delphi 10.2 for linux64>con
   @echo        22arm32    - Delphi XE8  for arm32>con
   @echo        22osx32    - Delphi XE8  for osx32>con
   @echo        22ios32    - Delphi XE8  for iOS arm 32>con
@@ -1713,26 +1904,33 @@
 
 
 ::::::::::::::::::::::::::::::::::::::::::::::::::::::
-:xGetRegValuePath %P% %N% %V%
+:xGetRegValuePath %P% %N% %V% %AsShort%
 ::::::::::::::::::::::::::::::::::::::::::::::::::::::  :: TODO: N - not work when quoted
 @setlocal
   @set S=
   @call set N=%%%~2%%
-  @for /F "skip=2 tokens=1,2,3*" %%i in ('REG QUERY "%%%1%%" /v %%%2%%') do @if "%%i"=="%N%" if "%%k" NEQ "" (
+  @for /F "skip=2 tokens=1,2,3,4,5*" %%i in ('REG QUERY "%%%1%%" /v %%%2%%') do @if "%%i"=="%N%" if "%%k" NEQ "" (
    set S=%%k
+   @rem TODO: rewrite for universal
+       @rem if "%%l" neq "" set S=%S% %%l
+       @rem if "%%m" neq "" set S=%S% %%m
+       if "%%l" neq "" set S=%%k %%l
+       if "%%m" neq "" set S=%%k %%l %%m
    call :RemoveRigthSplash S
   )
+@rem Expanded path contains short names only:
+@if "%4"=="1" @for %%i in ("%S%") do set S=%%~si
 @endlocal & @set "%3=%S%" & @goto :eof
 ::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 
 ::::::::::::::::::::::::::::::::::::::::::::::::::::::
-:GetRegValuePath P N %V%
+:GetRegValuePath P N %V% %AsShort%
 ::::::::::::::::::::::::::::::::::::::::::::::::::::::  :: TODO: N - not work when quoted
 @setlocal
   @set P=%1
   @set N=%2
   @set V=
-  @call :xGetRegValuePath P N V
+  @call :xGetRegValuePath P N V %4
 @endlocal & @set "%3=%V%" & @goto :eof
 ::::::::::::::::::::::::::::::::::::::::::::::::::::::

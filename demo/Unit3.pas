@@ -442,7 +442,12 @@ end;
 procedure TForm3.FormCreate(Sender: TObject);
 begin
   //
+  {$IFDEF CPUX64}
+  Caption := Caption + ' (x64)';
+  {$ENDIF}
+  //
   SFTP := TSFTPClient.Create(Self);
+  SFTP.DebugMode := True; // ouput debug info over Windows.OutputDebugString
   SFTP.OnTransferProgress := OnProgress;
   SFTP.OnAuthFailed := OnAuthFailed;
   SFTP.OnCantChangeStartDir := OnCantChangeStartDir;
