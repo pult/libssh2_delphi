@@ -1,3 +1,4 @@
+{ libssh2_publickey.pas } // version: 2020.0919.0015
 { **
   *  Delphi/Pascal Wrapper around the library "libssh2"
   *    Base repository:
@@ -19,12 +20,14 @@ uses
   {$IFDEF allow_hvdll}
   HVDll, // alternative for: external ?dll_name name '?function_name' delayed;
   {$ENDIF}
-  {$IFDEF WIN32}
-  Windows,
-  {$ELSE}
-  Wintypes, WinProcs,
+  {$IFDEF MSWINDOWS}
+    {$if defined(WIN32) or defined(WIN64)}
+      Windows,
+    {$else}
+      Wintypes, WinProcs,
+    {$ifend}
   {$ENDIF}
-  libssh2;
+  SysUtils, libssh2;
 
 {+// Copyright (c) 2004-2006, Sara Golemon <sarag@libssh2.org> }
 {-* All rights reserved. }

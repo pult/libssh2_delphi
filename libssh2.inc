@@ -1,4 +1,4 @@
-{ libssh2.inc }
+{ libssh2.inc } // version: 2020.0919.0015
 
 {$IFDEF FPC}
   {$ALIGN 8} // For packed record
@@ -28,13 +28,13 @@
         {$define allow_hvdll} { optional }
       {$endif}
     {$ELSE}
-      {$define allow_hvdll} { optional } // TODO: FPC Check ...
+      {$define allow_hvdll}   { optional }
     {$ENDIF}
   {$IFEND}
 {$ELSE}
   {$IFDEF WIN64}
     {$IFNDEF FPC}
-      {$define allow_delayed} { optional } // TODO: Если подсунуть либу x86 - КРАХ !!!
+      {$define allow_delayed} { optional } // TODO: Crash for x86 dll
       {$ifndef allow_delayed}
 //TODO:        {.$define allow_hvdll} { optional }
       {$endif}

@@ -1,3 +1,4 @@
+{ libssh2.pas } // version: 2020.0919.0015
 { **
   *  Delphi/Pascal Wrapper around the library "libssh2"
   *    Base repository:
@@ -19,11 +20,14 @@ uses
   {$IFDEF allow_hvdll}
   HVDll, // alternative for: external ?dll_name name '?function_name' delayed;
   {$ENDIF}
-  {$IFDEF WIN32}
-  Windows;
-  {$ELSE}
-  Wintypes, WinProcs;
+  {$IFDEF MSWINDOWS}
+    {$if defined(WIN32) or defined(WIN64)}
+      Windows,
+    {$else}
+      Wintypes, WinProcs,
+    {$ifend}
   {$ENDIF}
+  SysUtils;
 
 {+// Copyright (c) 2004-2009, Sara Golemon <sarag@libssh2.org> }
 {-* Copyright (c) 2009 by Daniel Stenberg }
@@ -65,7 +69,17 @@ uses
 {= }
 
 const
-  libssh2_name = 'libssh2.dll';
+  libssh2_name = 'libssh2'
+  {$IFDEF MSWINDOWS}
+     {$IFDEF WIN64}
+    + '-x64'          // optional
+     {$ENDIF}
+    + '.dll'          // optional
+  {$ENDIF}
+  {$IFDEF LINUX}
+    + '.so'
+  {$ENDIF}
+  ;
 
 type
   libssh2_uint64_t = UInt64;
@@ -73,6 +87,17 @@ type
   uint32_t = UInt;
   ssize_t = Integer;
   time_t = ULong;
+
+  {$IFDEF FPC}
+    TSocket = ptruint;
+  {$ELSE}
+    {$IFDEF WIN64}
+    TSocket = UINT_PTR;
+    {$ELSE}
+    u_int = Cardinal;
+    TSocket = u_int;
+    {$ENDIF}
+  {$ENDIF}
 
 const
 {+// We use underscore instead of dash when appending CVS in dev versions just }
@@ -462,12 +487,29 @@ var libssh2_banner_set: function(session: PLIBSSH2_SESSION;
 {$ifend}
 
 {$if not declared(uHVDll)}
-function libssh2_session_startup(session: PLIBSSH2_SESSION;
-                                 sock: Integer): Integer; cdecl;
+function libssh2_session_handshake(session: PLIBSSH2_SESSION;
+                                 sock: TSocket): Integer; cdecl;
 {$else}
-var libssh2_session_startup: function(session: PLIBSSH2_SESSION;
-                                 sock: Integer): Integer; cdecl;
+var libssh2_session_handshake: function(session: PLIBSSH2_SESSION;
+                                 sock: TSocket): Integer; cdecl;
 {$ifend}
+// deprecated:
+//{$if not declared(uHVDll)}
+//function libssh2_session_startup(session: PLIBSSH2_SESSION;
+//                                 sock: Integer): Integer; cdecl;
+//  {$if defined(FPC) or (CompilerVersion >= 24.00)}
+//  deprecated 'Starting in libssh2 version 1.2.8 this function is considered deprecated. Use libssh2_session_handshake instead';
+//  {$ifend}
+//{$else}
+//var libssh2_session_startup: function(session: PLIBSSH2_SESSION;
+//                                 sock: Integer): Integer; cdecl;
+//{$ifend}
+function libssh2_session_startup(session: PLIBSSH2_SESSION;
+                                 sock: TSocket): Integer; cdecl;
+  //{$if defined(FPC) or (CompilerVersion >= 24.00)}
+  //deprecated 'Starting in libssh2 version 1.2.8 this function is considered deprecated. Use libssh2_session_handshake instead';
+  //{$ifend}
+// deprecated.
 
 {$if not declared(uHVDll)}
 function libssh2_session_disconnect_ex(session: PLIBSSH2_SESSION;
@@ -1662,7 +1704,10 @@ function libssh2_session_init_ex; external libssh2_name{$ifdef allow_delayed} de
 function libssh2_session_abstract; external libssh2_name{$ifdef allow_delayed} delayed{$endif};
 function libssh2_session_callback_set; external libssh2_name{$ifdef allow_delayed} delayed{$endif};
 function libssh2_banner_set; external libssh2_name{$ifdef allow_delayed} delayed{$endif};
-function libssh2_session_startup; external libssh2_name{$ifdef allow_delayed} delayed{$endif};
+function libssh2_session_handshake; external libssh2_name{$ifdef allow_delayed} delayed{$endif};
+// deprecated:
+//function libssh2_session_startup; external libssh2_name{$ifdef allow_delayed} delayed{$endif};
+// deprecated.
 function libssh2_session_disconnect_ex; external libssh2_name{$ifdef allow_delayed} delayed{$endif};
 function libssh2_session_free; external libssh2_name{$ifdef allow_delayed} delayed{$endif};
 function libssh2_hostkey_hash; external libssh2_name{$ifdef allow_delayed} delayed{$endif};
@@ -1749,7 +1794,8 @@ var
     (Proc: @@libssh2_session_abstract; Name: 'libssh2_session_abstract'),
     (Proc: @@libssh2_session_callback_set; Name: 'libssh2_session_callback_set'),
     (Proc: @@libssh2_banner_set; Name: 'libssh2_banner_set'),
-    (Proc: @@libssh2_session_startup; Name: 'libssh2_session_startup'),
+    (Proc: @@libssh2_session_handshake; Name: 'libssh2_session_handshake'),
+    //(Proc: @@libssh2_session_startup; Name: 'libssh2_session_startup'),
     (Proc: @@libssh2_session_disconnect_ex; Name: 'libssh2_session_disconnect_ex'),
     (Proc: @@libssh2_session_free; Name: 'libssh2_session_free'),
     (Proc: @@libssh2_hostkey_hash; Name: 'libssh2_hostkey_hash'),
@@ -1980,6 +2026,34 @@ function libssh2_scp_send(session: PLIBSSH2_SESSION; const path: PAnsiChar; mode
 begin
   Result := libssh2_scp_send_ex(session, path, mode, size, 0, 0);
 end;
+
+// deprecated:
+function libssh2_session_startup(session: PLIBSSH2_SESSION;
+                                 sock: TSocket): Integer; cdecl;
+{$IFDEF MSWINDOWS}
+type
+  t_libssh2_session_startup = function(session: PLIBSSH2_SESSION;
+                                     sock: Integer): Integer; cdecl;
+var
+  func: t_libssh2_session_startup;
+  H: THandle;
+{$ENDIF MSWINDOWS}
+begin
+  {$IFNDEF MSWINDOWS}
+  Result := libssh2_session_handshake(session, sock);
+  {$ELSE MSWINDOWS}
+  Result := 1;
+  H := GetModuleHandle(libssh2_name); //H := GetLibraryHandle(libssh2_name);
+  if H <> 0 then
+  begin
+    Result := 2;
+    func := GetProcAddress(H, 'libssh2_session_startup');
+    if Assigned(func) then
+      Result := func(session, sock);
+  end;
+  {$ENDIF MSWINDOWS}
+end;
+// deprecated.
 
 initialization
   {$if declared(uHVDll)}
