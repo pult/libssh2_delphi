@@ -75,10 +75,15 @@ const
     + '-x64'          // optional
      {$ENDIF}
     + '.dll'          // optional
-  {$ENDIF}
+  {$ELSE !MSWINDOWS}
   {$IFDEF LINUX}
     + '.so'
-  {$ENDIF}
+  {$ELSE}
+    {$IFDEF BSD}
+    + '.dylib'
+    {$ENDIF}
+  {$ENDIF !LINUX}
+  {$ENDIF !MSWINDOWS}
   ;
 
 type
