@@ -3,11 +3,15 @@ libssh2 SOURCE:
   https://www.libssh2.org/
   https://www.libssh2.org/docs.html
 
-libssh2 DLL:
-============
+libssh2 DLL (x86):
+==================
 
-libssh2-1.8.0-vc11-x86.zip    http://windows.php.net/downloads/php-sdk/deps/vc11/x86/
+https://curl.haxx.se/windows/
 
-openssl-1.0.2m-vc11-x86.zip   http://windows.php.net/downloads/php-sdk/deps/vc11/x86/
-  or
-openssl-1.0.2m-i386-win32.zip http://indy.fulgan.com/SSL/
+cacert.pem             from curl-ca-bundle.crt "curl-7.72.0_3-win64-mingw.zip"
+curl.exe               from "curl-7.72.0_3-win64-mingw.zip"
+libcrypto-1_1-x64.dll  from "openssl-1.1.1g_3-win64-mingw.zip"
+libcurl-x64.dll        from "curl-7.72.0_3-win64-mingw.zip"
+libssh2-x64.dll        from "libssh2-1.9.0_3-win64-mingw.zip"
+libssl-1_1-x64.dll     from "openssl-1.1.1g_3-win64-mingw.zip"
+openssl.exe            from "openssl-1.1.1g_3-win64-mingw.zip"
