@@ -25,9 +25,6 @@
 @rem # Компиляция: Delphi/C++Builder/Kylix" pas модулей/проектов для различных платформ (win x86/x64,android arm32,osx,ios,linux).
 @rem # Запустите без параметров для справки.
 @rem #
-@rem # Copyright (c) 1998-2019
-@rem # by "Vadim V.Lopushanskiy" <pult@ukr.net>
-@rem #
 
 @if "%IGNOREERRORLEVEL%"=="" @(
   @set IGNOREERRORLEVEL=0
