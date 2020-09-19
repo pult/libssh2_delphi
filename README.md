@@ -17,6 +17,7 @@
 - **Sample:**
 
 ![Sample](img/sample.png?raw=true)
+![Sample](img/sample_1_9.png?raw=true)
 
 - **Alternative:** A dynamic link library with Delphi and C++ bindings based on **PuTTY**
 (https://github.com/superflexible/TGPuttyLib)
