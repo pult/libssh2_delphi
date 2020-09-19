@@ -1,3 +1,4 @@
+{ uMySFTPClient.pas } // version: 2020.0919.0015
 { **
   *  Copyright (c) 2010, Zeljko Marjanovic <savethem4ever@gmail.com>
   *  This code is licensed under MPL 1.1
@@ -1381,9 +1382,22 @@ begin
     if (R <> 0) and ADebugMode then log('Error setting comp_sc: ' + sError);
   end;
 
-  if ADebugMode then log('libssh2_session_startup:'); // @dbg
-  R := libssh2_session_startup(FSession, FSocket);
-  if ADebugMode then log('libssh2_session_startup.'); // @dbg
+  R := 0;
+  OK := False;
+  if Assigned(Addr(libssh2_session_handshake)) then
+  try
+    if ADebugMode then log('libssh2_session_handshake:'); // @dbg
+    R := libssh2_session_handshake(FSession, FSocket);
+    if ADebugMode then log('libssh2_session_handshake.'); // @dbg
+    OK := True;
+  except
+  end;
+  if not OK then // use old version libssh2:
+  begin
+    if ADebugMode then log('libssh2_session_startup:'); // @dbg
+    R := libssh2_session_startup(FSession, FSocket);
+    if ADebugMode then log('libssh2_session_startup.'); // @dbg
+  end;
   if R = 0 then
   begin
     if Assigned(FHashMgr) then
@@ -1491,7 +1505,9 @@ begin
       Inc(iRepeat);
 
       AuthOK := False;
+      {$warnings off}
       if ADebugMode then log('ParseAuthList: "' + string(StrPas(UserAuthList)) + '"'); // @dbg
+      {$warnings on}
       AuthMode := ParseAuthList(UserAuthList);
       if ADebugMode then log('ParseAuthList.'); // @dbg
       if amTryAll in AuthMode then
