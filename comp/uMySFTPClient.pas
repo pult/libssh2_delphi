@@ -1,4 +1,4 @@
-{ uMySFTPClient.pas } // version: 2020.0919.0015
+{ uMySFTPClient.pas } // version: 2020.1108.0034
 { **
   *  Copyright (c) 2010, Zeljko Marjanovic <savethem4ever@gmail.com>
   *  This code is licensed under MPL 1.1
@@ -200,6 +200,8 @@ type
     procedure DoOnFingerprint(const AState: TFingerprintState; var AAction: TConnectHashAction);
     function GetVersion: string;
     function GetLibString: string;
+    procedure SetKeepAlive(Value: Boolean);
+    procedure SetTimeOut(Value: Integer);
   protected
     function GetSessionPtr: PLIBSSH2_SESSION;
     function GetSocketHandle: Integer;
@@ -208,6 +210,9 @@ type
     procedure RaiseSSHError(const AMsg: string = ''; E: Integer = 0); virtual;
     function MyEncode(const WS: WideString): AnsiString; virtual;
     function MyDecode(const S: AnsiString): WideString; virtual;
+
+    property Socket: Integer read FSocket;
+    property Session: PLIBSSH2_SESSION read FSession;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
@@ -222,8 +227,8 @@ type
     property Host: string read FHost write FHost;
     property Port: Word read FPort write FPort default 22;
     property IPVersion: TIPVersion read FIPVersion write FIPVersion;
-    property KeepAlive: Boolean read FKeepAlive write FKeepAlive;
-    property TimeOut: Integer read FTimeOut write FTimeOut;
+    property KeepAlive: Boolean read FKeepAlive write SetKeepAlive;
+    property TimeOut: Integer read FTimeOut write SetTimeOut;
     property SockSndRcvBufLen: Integer read FSockBufLen write FSockBufLen;
     property AuthModes: TAuthModes read FAuthModes write SetAuthModes default [amTryAll];
     property UserName: string read FUserName write FUserName;
@@ -338,6 +343,11 @@ begin
   {$ENDIF}
 end;
 
+function bool2int(b: Boolean): Integer; inline;
+begin
+  if b then Result := 1 else Result := 0;
+end;
+
 var
   GSSH2Init: Integer;
 
@@ -419,51 +429,169 @@ begin
     Result := Copy(Result, Length(Result) - Len + 1, Len);
 end;
 
-function EncodeStr(const WS: WideString; ACodePage: Word): AnsiString;
-var
-  L: Integer;
-  Flags: Cardinal;
+{$if defined(MSWINDOWS) and not declared(LocaleCharsFromUnicode)}
+function LocaleCharsFromUnicode(CodePage, Flags: Cardinal;
+  UnicodeStr: PWideChar; UnicodeStrLen: Integer; LocaleStr: PAnsiChar;
+  LocaleStrLen: Integer; DefaultChar: PAnsiChar; UsedDefaultChar: PLongBool): Integer;
+  //{$ifdef FPC}inline;{$else}{$ifdef CONDITIONALEXPRESSIONS}{$IF CompilerVersion >= 25.00}inline;{$IFEND}{$endif}{$endif}
+  {$ifdef _inline_}inline;{$endif}
 begin
-  if ACodePage = CP_UTF8 then
-  begin
-    Result := UTF8Encode(WS);
-    Exit;
-  end;
-
-  Result := '';
-  Flags := 0; // WC_COMPOSITECHECK;
-  L := WideCharToMultiByte(ACodePage, Flags, @WS[1], -1, nil, 0, nil, nil);
-  if L > 1 then
-  begin
-    SetLength(Result, L - 1);
-    WideCharToMultiByte(ACodePage, Flags, @WS[1], -1, @Result[1], L - 1, nil, nil)
+  Result := WideCharToMultiByte(CodePage, Flags, UnicodeStr, UnicodeStrLen, LocaleStr,
+    LocaleStrLen, DefaultChar, PBOOL(UsedDefaultChar));
+end;
+{$ifend}
+{$if defined(FPC) and declared(widestringmanager) and not declared(LocaleCharsFromUnicode)} // TODO: FPC check
+function LocaleCharsFromUnicode(CodePage, Flags: Cardinal;
+  UnicodeStr: PWideChar; UnicodeStrLen: Integer; LocaleStr: PAnsiChar;
+  LocaleStrLen: Integer; DefaultChar: PAnsiChar; UsedDefaultChar: PLongBool): Integer;
+var S: RawByteString;
+begin
+  widestringmanager.Unicode2AnsiMoveProc(UnicodeStr, S, CodePage, UnicodeStrLen);
+  Result := Length(S);
+  if (Result > 0) and Assigned(LocaleStr) then begin
+    if LocaleStrLen < Result then
+      Result := LocaleStrLen;
+    if Result > 0 then begin
+      Move(S[1], LocaleStr^, Result);
+    end;
   end;
 end;
+{$ifend}
 
-function DecodeStr(const S: AnsiString; ACodePage: Word): WideString;
-var
-  L: Integer;
-  Flags: Cardinal;
+{$if defined(MSWINDOWS) and not declared(UnicodeFromLocaleChars)}
+function UnicodeFromLocaleChars(CodePage, Flags: Cardinal; LocaleStr: PAnsiChar;
+  LocaleStrLen: Integer; UnicodeStr: PWideChar; UnicodeStrLen: Integer): Integer;
+  //{$ifdef FPC}inline;{$else}{$ifdef CONDITIONALEXPRESSIONS}{$IF CompilerVersion >= 25.00}inline;{$IFEND}{$endif}{$endif}
+  {$ifdef _inline_}inline;{$endif}
 begin
-  if ACodePage = CP_UTF8 then
+  Result := MultiByteToWideChar(CodePage, Flags, LocaleStr, LocaleStrLen,
+    UnicodeStr, UnicodeStrLen);
+end;
+{$ifend}
+{$if defined(FPC) and declared(widestringmanager) and not declared(UnicodeFromLocaleChars)} // TODO: FPC check
+function UnicodeFromLocaleChars(CodePage, Flags: Cardinal; LocaleStr: PAnsiChar;
+  LocaleStrLen: Integer; UnicodeStr: PWideChar; UnicodeStrLen: Integer): Integer;
+var U: UnicodeString;
+begin
+  widestringmanager.Ansi2UnicodeMoveProc(LocaleStr, CodePage, U, LocaleStrLen);
+  Result := Length(U);
+  if (Result > 0) and Assigned(UnicodeStr) then begin
+    if UnicodeStrLen < Result then
+      Result := UnicodeStrLen;
+    if Result > 0 then begin
+      Move(U[1], UnicodeStr^, Result);
+    end;
+  end;
+end;
+{$ifend}
+
+{.$if not declared(EncodeStr)}
+function EncodeStr(const WS: WideString; ACodePage: Word): AnsiString;
+var L: Integer;
+{$if declared(LocaleCharsFromUnicode)}
+  Flags: Cardinal;
+{$elseif declared(TEncoding)}
+  E: TEncoding; B: TBytes;
+{$ifend}
+begin
+  Result := '';
+  L := Length(WS);
+  if L = 0 then Exit;
+  if ACodePage = CP_UTF8 then begin
+    Result := UTF8Encode(WS);
+    Exit;
+  end else if ACodePage = 0 then begin
+    Result := AnsiString(WS);
+    Exit;
+  end;
+  {$if declared(LocaleCharsFromUnicode)}
+  Flags := 0; // WC_COMPOSITECHECK;
+  L := LocaleCharsFromUnicode(ACodePage, Flags, @WS[1], -1, nil, 0, nil, nil);
+  if L > 1 then begin
+    SetLength(Result, L - 1);
+    LocaleCharsFromUnicode(ACodePage, Flags, @WS[1], -1, @Result[1], L - 1, nil, nil)
+  end;
+  {$elseif declared(TEncoding)}
+  case ACodePage of
+    0:
+      E := TEncoding.Ansi;
+    1200:  // CP_UTF16LE
+      E := TEncoding.Unicode;
+    65001: // CP_UTF8
+      E := TEncoding.UTF8;
+    else
+    begin
+      E := TEncoding.GetEncoding(ACodePage);
+    end;
+  end;
+  B := E.GetBytes(UnicodeString(WS));
+  if not E.IsStandardEncoding(E) then
+    E.Free;
+  L := Length(B);
+  if L > 0 then
   begin
+    SetLength(Result, L);
+    Move(B[0], Result[1], L);
+  end;
+  {$else}
+  Result := AnsiString(WS);
+  {$ifend}
+end;
+{.$ifend} // not declared(EncodeStr)
+
+{.$if not declared(DecodeStr)}
+function DecodeStr(const S: AnsiString; ACodePage: Word): WideString;
+var L: Integer;
+{$if declared(UnicodeFromLocaleChars)}
+  Flags: Cardinal;
+{$elseif declared(TEncoding)}
+  E: TEncoding; B: TBytes;
+{$ifend}
+begin
+  Result := '';
+  L := Length(S);
+  if L = 0 then Exit;
+  if ACodePage = CP_UTF8 then begin
     {$IFDEF UNICODE} // TODO: FPC Check
     Result := UTF8ToWideString(S);
     {$ELSE}
     Result := UTF8Decode(S);
     {$ENDIF}
     Exit;
+  end else if ACodePage = 0 then begin
+    Result := WideString(S);
+    Exit;
   end;
-
-  Result := '';
+  {$if declared(UnicodeFromLocaleChars)}
   Flags := MB_PRECOMPOSED;
-  L := MultiByteToWideChar(ACodePage, Flags, PAnsiChar(@S[1]), -1, nil, 0);
-  if L > 1 then
-  begin
+  L := UnicodeFromLocaleChars(ACodePage, Flags, PAnsiChar(@S[1]), -1, nil, 0);
+  if L > 1 then begin
     SetLength(Result, L - 1);
-    MultiByteToWideChar(ACodePage, Flags, PAnsiChar(@S[1]), -1, PWideChar(@Result[1]), L - 1);
+    UnicodeFromLocaleChars(ACodePage, Flags, PAnsiChar(@S[1]), -1, PWideChar(@Result[1]), L - 1);
   end;
+  {$elseif declared(TEncoding)}
+  case ACodePage of
+    0:
+      E := TEncoding.Ansi;
+    1200:  // CP_UTF16LE
+      E := TEncoding.Unicode;
+    65001: // CP_UTF8
+      E := TEncoding.UTF8;
+    else
+    begin
+      E := TEncoding.GetEncoding(ACodePage);
+    end;
+  end;
+  SetLength(B, L);
+  Move(S[1], B[0], L);
+  Result := WideString(E.GetString(B));
+  if not E.IsStandardEncoding(E) then
+    E.Free;
+  {$else}
+  Result := WideString(S);
+  {$ifend}
 end;
+{.$ifend} // not declared(DecodeStr)
 
 { TSFTPItem }
 
@@ -1301,6 +1429,7 @@ var
   OK, AuthOK: Boolean;
   Prefs: AnsiString;
   HashMode: THashMode;
+  KeepAliveTimeOut, i: Integer;
 label
   L_AUTH_REPEAT;
 begin
@@ -1456,13 +1585,25 @@ begin
     libssh2_session_set_blocking(FSession, 1);
     if ADebugMode then log('libssh2_session_set_blocking.'); //@dbg
 
-    if (FTimeOut > 0) and (FTimeOut<10) then FTimeOut := 10;
-    if FKeepAlive then
+    // Connection timeout
+    (* // ERROR: Could not get user auth list. // ERROR for DevAr.Demo.SSH.Server => moved lower!
+    KeepAliveTimeOut := FTimeOut;
+    if (KeepAliveTimeOut > 0) and (KeepAliveTimeOut<10) then
+      KeepAliveTimeOut := 10
+    else if KeepAliveTimeOut > 3*60 then
+      KeepAliveTimeOut := 3*60;
+    //?if FKeepAlive then
     begin
-      if ADebugMode then log('libssh2_keepalive_config: seconds: ' + IntToStr(FTimeOut)); // @dbg
-      libssh2_keepalive_config(FSession, Integer(FKeepAlive), FTimeOut); // FTimeOut - number of seconds
-      if ADebugMode then log('libssh2_keepalive_config.'); // @dbg
-    end;
+      //if ADebugMode then log('libssh2_keepalive_config: active: '+IntToStr(bool2int(FKeepAlive))+'; seconds: ' + IntToStr(KeepAliveTimeOut)); // @dbg
+      //libssh2_keepalive_config(FSession, bool2int(FKeepAlive), KeepAliveTimeOut); // FTimeOut - number of seconds
+      if ADebugMode then log('libssh2_keepalive_config: active: 0; seconds: ' + IntToStr(KeepAliveTimeOut)); // @dbg
+      libssh2_keepalive_config(FSession, {KeepAlive:}0, KeepAliveTimeOut); // FTimeOut - number of seconds
+      // check/read keepalive timeout settings:
+      i := 0;
+      R := libssh2_keepalive_send(FSession, {seconds_to_next:}i);
+      if R < 0 then ;
+      if ADebugMode then log('libssh2_keepalive_config. OK: '+IntToStr(bool2int(i = KeepAliveTimeOut))); // @dbg
+    end;//*)
 
     if ADebugMode then log('libssh2_userauth_list:'); // @dbg
     UserAuthList := libssh2_userauth_list(FSession, PAnsiChar(AnsiString(FUserName)),
@@ -1595,6 +1736,21 @@ begin
 
     if ADebugMode then log('Try Connected!'); // @dbg
     FConnected := True;
+
+    // send timeout
+    KeepAliveTimeOut := FTimeOut;
+    if (KeepAliveTimeOut > 0) and (KeepAliveTimeOut<10) then
+      KeepAliveTimeOut := 10;
+    //if FKeepAlive then
+    begin
+      if ADebugMode then log('libssh2_keepalive_config: active: '+IntToStr(bool2int(FKeepAlive))+'; seconds: ' + IntToStr(KeepAliveTimeOut)); // @dbg
+      libssh2_keepalive_config(FSession, bool2int(FKeepAlive), KeepAliveTimeOut); // FTimeOut - number of seconds
+      // check/read keepalive timeout settings:
+      i := 0;
+      R := libssh2_keepalive_send(FSession, {seconds_to_next:}i);
+      if ADebugMode then log('libssh2_keepalive_config. OK: '+IntToStr(bool2int(i = KeepAliveTimeOut))); // @dbg
+    end;
+
     if Assigned(FOnConnect) then
     begin
       if ADebugMode then log('OnConnect:'); // @dbg
@@ -1740,7 +1896,7 @@ begin
     RaiseSSHError('Invalid winsock version!');
     Exit;
   end;
-  Result := socket(Ord(FIPVersion), SOCK_STREAM, IPPROTO_TCP);
+  Result := WinSock.socket(Ord(FIPVersion), SOCK_STREAM, IPPROTO_TCP);
   if Result = INVALID_SOCKET then
   begin
     RaiseSSHError(SysErrorMessage(WSAGetLastError));
@@ -1774,9 +1930,12 @@ begin
       end;
     end;
   finally
-    closesocket(FSocket);
-    FSocket := INVALID_SOCKET;
     FSession := nil;
+    if FSocket <> INVALID_SOCKET then
+    begin
+      closesocket(FSocket);
+      FSocket := INVALID_SOCKET;
+    end;
     WSACleanup;
     FConnected := False;
   end;
@@ -1813,8 +1972,12 @@ begin
   I := 0;
   P := PAnsiChar(AnsiString(Result));
   if FSession <> nil then
+  begin
     libssh2_session_last_error(FSession, P, I, 0);
-  Result := string(P);
+    Result := string(P);
+    if Result <> '' then
+      FLastErrStr := Result;
+  end;
 end;
 
 function TSSH2Client.GetLibString: string;
@@ -1901,6 +2064,55 @@ begin
   end;
 end;
 
+procedure TSSH2Client.SetKeepAlive(Value: Boolean);
+var
+  KeepAliveTimeOut, R, i: Integer;
+begin
+  if FKeepAlive <> Value then
+  begin
+    FKeepAlive := Value;
+    //
+    if Connected then
+    begin
+      // send timeout
+      KeepAliveTimeOut := FTimeOut;
+      if (KeepAliveTimeOut > 0) and (KeepAliveTimeOut<10) then KeepAliveTimeOut := 10;
+      if fDebugMode then dbg('libssh2_keepalive_config: active: '+IntToStr(bool2int(FKeepAlive))+'; seconds: ' + IntToStr(KeepAliveTimeOut)); // @dbg
+      libssh2_keepalive_config(FSession, bool2int(FKeepAlive), KeepAliveTimeOut); // FTimeOut - number of seconds
+      // check/read keepalive timeout settings:
+      i := 0;
+      R := libssh2_keepalive_send(FSession, {seconds_to_next:}i);
+      if R < 0 then ;
+      if fDebugMode then dbg('libssh2_keepalive_config. OK: '+IntToStr(bool2int(i = KeepAliveTimeOut))); // @dbg
+    end;
+  end;
+end;
+
+procedure TSSH2Client.SetTimeOut(Value: Integer);
+var
+  KeepAliveTimeOut, R, i: Integer;
+begin
+  if Value < 0 then Value := 0;
+  if FTimeOut <> Value then
+  begin
+    FTimeOut := Value;
+    //
+    if Connected then
+    begin
+      // send timeout
+      KeepAliveTimeOut := FTimeOut;
+      if (KeepAliveTimeOut > 0) and (KeepAliveTimeOut<10) then KeepAliveTimeOut := 10;
+      if fDebugMode then dbg('libssh2_keepalive_config: active: '+IntToStr(bool2int(FKeepAlive))+'; seconds: ' + IntToStr(KeepAliveTimeOut)); // @dbg
+      libssh2_keepalive_config(FSession, bool2int(FKeepAlive), KeepAliveTimeOut); // FTimeOut - number of seconds
+      // check/read keepalive timeout settings:
+      i := 0;
+      R := libssh2_keepalive_send(FSession, {seconds_to_next:}i);
+      if R < 0 then ;
+      if fDebugMode then dbg('libssh2_keepalive_config. OK: '+IntToStr(bool2int(i = KeepAliveTimeOut))); // @dbg
+    end;
+  end;
+end;
+
 { TSFTPClient }
 
 procedure TSFTPClient.Cancel(ADisconnect: Boolean);
@@ -1957,8 +2169,11 @@ begin
   FSFtp := libssh2_sftp_init(GetSessionPtr);
   if FSFtp = nil then
   begin
-    Disconnect;
-    RaiseSSHError;
+    try
+      RaiseSSHError;
+    finally
+      Disconnect;
+    end;
   end;
 
   Dir := ExpandCurrentDirPath;

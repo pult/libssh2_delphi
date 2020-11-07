@@ -186,6 +186,11 @@ var libssh2_publickey_shutdown: function(pkey: PLIBSSH2_PUBLICKEY): Integer; cde
 implementation
 
 {$if not declared(uHVDll)}
+
+{$ifdef allow_delayed}
+  {$WARN SYMBOL_PLATFORM OFF} // W002
+{$endif}
+
 function libssh2_publickey_init; external libssh2_name{$ifdef allow_delayed} delayed{$endif};
 function libssh2_publickey_add_ex; external libssh2_name{$ifdef allow_delayed} delayed{$endif};
 function libssh2_publickey_remove_ex; external libssh2_name{$ifdef allow_delayed} delayed{$endif};
