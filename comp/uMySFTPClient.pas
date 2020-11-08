@@ -1,4 +1,4 @@
-{ uMySFTPClient.pas } // version: 2020.1108.1234
+{ uMySFTPClient.pas } // version: 2020.1108.1455
 { **
   *  Copyright (c) 2010, Zeljko Marjanovic <savethem4ever@gmail.com>
   *  This code is licensed under MPL 1.1
@@ -212,8 +212,8 @@ type
     function CreateSocket: Integer; virtual;
     function ConnectSocket(var S: Integer): Boolean; virtual;
     procedure RaiseSSHError(const AMsg: string = ''; E: Integer = 0); virtual;
-    function MyEncode(const WS: WideString): AnsiString; virtual;
-    function MyDecode(const S: AnsiString): WideString; virtual;
+    function MyEncode(const WS: UnicodeString): AnsiString; virtual;
+    function MyDecode(const S: AnsiString): UnicodeString; virtual;
 
     property Socket: Integer read FSocket;
     property Session: PLIBSSH2_SESSION read FSession;
@@ -333,6 +333,8 @@ implementation
 uses
   DateUtils, Forms, StrUtils, WideStrUtils;
 
+{$ifdef FPC}{$define _inline_}{$else}{$ifdef CONDITIONALEXPRESSIONS}{$IF CompilerVersion >= 25.00}{$define _inline_}{$IFEND}{$endif}{$endif}
+
 procedure dbg(const S: string); inline;
 begin
   {$IFDEF MSWINDOWS}
@@ -340,7 +342,7 @@ begin
   {$ENDIF}
 end;
 
-procedure dbgw(const S: WideString); inline;
+procedure dbgw(const S: UnicodeString); inline;
 begin
   {$IFDEF MSWINDOWS}
   if Length(S) > 0 then OutputDebugStringW(PWideChar('libssh2:> ' + S));
@@ -2035,12 +2037,12 @@ begin
   Result := ClassName + ' v' + SFTPCLIENT_VERSION;
 end;
 
-function TSSH2Client.MyDecode(const S: AnsiString): WideString;
+function TSSH2Client.MyDecode(const S: AnsiString): UnicodeString;
 begin
   Result := DecodeStr(S, FCodePage);
 end;
 
-function TSSH2Client.MyEncode(const WS: WideString): AnsiString;
+function TSSH2Client.MyEncode(const WS: UnicodeString): AnsiString;
 begin
   Result := EncodeStr(WS, FCodePage);
 end;
