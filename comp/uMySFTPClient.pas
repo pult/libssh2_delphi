@@ -1,4 +1,4 @@
-{ uMySFTPClient.pas } // version: 2020.1108.0034
+{ uMySFTPClient.pas } // version: 2020.1108.0303
 { **
   *  Copyright (c) 2010, Zeljko Marjanovic <savethem4ever@gmail.com>
   *  This code is licensed under MPL 1.1
@@ -35,6 +35,10 @@ const
   SFTPCLIENT_VERSION = '0.5';
 
 type
+  {$if not declared(UnicodeString)}
+  UnicodeString = WideString;
+  {$ifend}
+
   TSFTPItemType = (sitUnknown, sitDirectory, sitFile, sitSymbolicLink, sitSymbolicLinkDir,
     sitBlockDev, sitCharDev, sitFIFO, sitSocket);
   TIPVersion = (IPvUNSPEC = 0, IPv4 = AF_INET, IPv6 = AF_INET6);
@@ -321,8 +325,8 @@ type
 
 function ToOctal(X: Cardinal; const Len: Integer = 4): string;
 function FromOctal(const S: string): Cardinal;
-function EncodeStr(const WS: WideString; ACodePage: Word = CP_UTF8): AnsiString;
-function DecodeStr(const S: AnsiString; ACodePage: Word = CP_UTF8): WideString;
+function EncodeStr(const WS: UnicodeString; ACodePage: Word = CP_UTF8): AnsiString;
+function DecodeStr(const S: AnsiString; ACodePage: Word = CP_UTF8): UnicodeString;
 
 implementation
 
@@ -486,9 +490,11 @@ end;
 {$ifend}
 
 {.$if not declared(EncodeStr)}
-function EncodeStr(const WS: WideString; ACodePage: Word): AnsiString;
+function EncodeStr(const WS: UnicodeString; ACodePage: Word): AnsiString;
 var L: Integer;
-{$if declared(LocaleCharsFromUnicode)}
+{$if defined(FPC) and declared(widestringmanager)}
+  S: RawByteString;
+{$elseif declared(LocaleCharsFromUnicode)}
   Flags: Cardinal;
 {$elseif declared(TEncoding)}
   E: TEncoding; B: TBytes;
@@ -504,7 +510,10 @@ begin
     Result := AnsiString(WS);
     Exit;
   end;
-  {$if declared(LocaleCharsFromUnicode)}
+  {$if defined(FPC) and declared(widestringmanager)}
+  widestringmanager.Unicode2AnsiMoveProc(Pointer(WS), S, CodePage, L);
+  Result := AnsiString(S);
+  {$elseif declared(LocaleCharsFromUnicode)}
   Flags := 0; // WC_COMPOSITECHECK;
   L := LocaleCharsFromUnicode(ACodePage, Flags, @WS[1], -1, nil, 0, nil, nil);
   if L > 1 then begin
@@ -534,6 +543,7 @@ begin
     Move(B[0], Result[1], L);
   end;
   {$else}
+  ERROR: not implemented it
   Result := AnsiString(WS);
   {$ifend}
 end;
@@ -542,7 +552,8 @@ end;
 {.$if not declared(DecodeStr)}
 function DecodeStr(const S: AnsiString; ACodePage: Word): WideString;
 var L: Integer;
-{$if declared(UnicodeFromLocaleChars)}
+{$if defined(FPC) and declared(widestringmanager)}
+{$elseif declared(UnicodeFromLocaleChars)}
   Flags: Cardinal;
 {$elseif declared(TEncoding)}
   E: TEncoding; B: TBytes;
@@ -559,10 +570,12 @@ begin
     {$ENDIF}
     Exit;
   end else if ACodePage = 0 then begin
-    Result := WideString(S);
+    Result := UnicodeString(S);
     Exit;
   end;
-  {$if declared(UnicodeFromLocaleChars)}
+  {$if defined(FPC) and declared(widestringmanager)}
+  widestringmanager.Ansi2UnicodeMoveProc(Pointer(S), CodePage, Result, L);
+  {$elseif declared(UnicodeFromLocaleChars)}
   Flags := MB_PRECOMPOSED;
   L := UnicodeFromLocaleChars(ACodePage, Flags, PAnsiChar(@S[1]), -1, nil, 0);
   if L > 1 then begin
@@ -584,11 +597,12 @@ begin
   end;
   SetLength(B, L);
   Move(S[1], B[0], L);
-  Result := WideString(E.GetString(B));
+  Result := UnicodeString(E.GetString(B));
   if not E.IsStandardEncoding(E) then
     E.Free;
   {$else}
-  Result := WideString(S);
+  ERROR: not implemented it
+  Result := UnicodeString(S);
   {$ifend}
 end;
 {.$ifend} // not declared(DecodeStr)
