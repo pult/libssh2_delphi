@@ -1,4 +1,4 @@
-{ uMySFTPClient.pas } // version: 2020.1108.0303
+{ uMySFTPClient.pas } // version: 2020.1108.1234
 { **
   *  Copyright (c) 2010, Zeljko Marjanovic <savethem4ever@gmail.com>
   *  This code is licensed under MPL 1.1
@@ -433,6 +433,15 @@ begin
     Result := Copy(Result, Length(Result) - Len + 1, Len);
 end;
 
+{$if not declared(LongBool)}
+type
+  LongBool = BOOL;
+{$ifend}
+{$if not declared(PLongBool)}
+type
+  PLongBool = ^LongBool;
+{$ifend}
+
 {$if defined(MSWINDOWS) and not declared(LocaleCharsFromUnicode)}
 function LocaleCharsFromUnicode(CodePage, Flags: Cardinal;
   UnicodeStr: PWideChar; UnicodeStrLen: Integer; LocaleStr: PAnsiChar;
@@ -550,7 +559,7 @@ end;
 {.$ifend} // not declared(EncodeStr)
 
 {.$if not declared(DecodeStr)}
-function DecodeStr(const S: AnsiString; ACodePage: Word): WideString;
+function DecodeStr(const S: AnsiString; ACodePage: Word): UnicodeString;
 var L: Integer;
 {$if defined(FPC) and declared(widestringmanager)}
 {$elseif declared(UnicodeFromLocaleChars)}
