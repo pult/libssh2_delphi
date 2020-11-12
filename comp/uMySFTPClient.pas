@@ -16,7 +16,7 @@
 unit uMySFTPClient;
 
 {$i libssh2.inc}
-
+{$IFDEF DEBUG}{$D+,L+}{$ENDIF}
 interface
 
 uses
@@ -28,7 +28,10 @@ uses
   {$ELSE}
   Wintypes, WinProcs,
   {$ENDIF}
+  SyncObjs,
   Classes, SysUtils, WinSock, libssh2, libssh2_sftp;
+
+{$ifdef FPC}{$define _inline_}{$else}{$ifdef CONDITIONALEXPRESSIONS}{$IF CompilerVersion >= 25.00}{$define _inline_}{$IFEND}{$endif}{$endif}
 
 const
   AF_INET6 = 23;
@@ -333,26 +336,49 @@ implementation
 uses
   DateUtils, Forms, StrUtils, WideStrUtils;
 
-{$ifdef FPC}{$define _inline_}{$else}{$ifdef CONDITIONALEXPRESSIONS}{$IF CompilerVersion >= 25.00}{$define _inline_}{$IFEND}{$endif}{$endif}
 
-procedure dbg(const S: string); inline;
+procedure dbg(const S: string); {$ifdef _inline_}inline;{$endif}
 begin
   {$IFDEF MSWINDOWS}
   if Length(S) > 0 then OutputDebugString(PChar('libssh2:> ' + S));
   {$ENDIF}
 end;
 
-procedure dbgw(const S: UnicodeString); inline;
+procedure dbgw(const S: UnicodeString); {$ifdef _inline_}inline;{$endif}
 begin
   {$IFDEF MSWINDOWS}
   if Length(S) > 0 then OutputDebugStringW(PWideChar('libssh2:> ' + S));
   {$ENDIF}
 end;
 
-function bool2int(b: Boolean): Integer; inline;
+function bool2int(b: Boolean): Integer; {$ifdef _inline_}inline;{$endif}
 begin
   if b then Result := 1 else Result := 0;
 end;
+
+{function sftp_extract_file_path_a(const S: AnsiString): AnsiString;
+var i: Integer;
+begin
+  for i:= Length(S) downto 1 do begin
+    if S[1] = '/' then begin
+       Result := Copy(S, 1, i);
+       Exit;
+    end;
+  end;
+  Result := S;
+end;
+
+function sftp_extract_file_name_a(const S: AnsiString): AnsiString;
+var i: Integer;
+begin
+  for i:= Length(S) downto 1 do begin
+    if S[1] = '/' then begin
+       Result := Copy(S, i+, Length(S));
+       Exit;
+    end;
+  end;
+  Result := S;
+end;}
 
 var
   GSSH2Init: Integer;
@@ -395,15 +421,89 @@ procedure freeaddrinfo(ai: PAddrInfo); stdcall; external dll_ws2_32_name name 'f
   {$ifdef allow_delayed} delayed{$endif};
 {$ifend !declared(uHVDll)}
 
-function TestBit(const ABits, AVal: Cardinal): Boolean; inline;
+function TestBit(const ABits, AVal: Cardinal): Boolean; {$ifdef _inline_}inline;{$endif}
 begin
   Result := ABits and AVal { = AVal } <> 0;
 end;
 
-procedure ProcessMsgs;
+var
+  WSData: TWSAData;
+  hLockWSData: TCriticalSection;
+
+procedure WSDataInit();
 begin
-  Application.ProcessMessages;
+  hLockWSData := TCriticalSection.Create;
+  FillChar(WSData, SizeOf(WsaData), 0);
 end;
+
+function WSDataStartup(): integer;
+begin
+  hLockWSData.Enter;
+  try
+    if WSData.wVersion = 0 then // not initialized
+    begin
+      {$IFDEF DEBUG}
+      {if FDebugMode then }dbg('libssh2: WSAStartup:');
+      {$ENDIF}
+      Result := WSAStartup({MakeWord(2, 2)}$0202, WSData);
+      {$IFDEF DEBUG}
+      {if FDebugMode then }dbg('libssh2: WSAStartup. R: '+IntToStr(Result)+'; Version: '+IntToStr(WSData.wVersion));
+      {$ENDIF}
+    end
+    else
+      Result := 0;
+  finally
+    hLockWSData.Leave;
+  end;
+end;
+
+procedure WSDataCleanup();
+var R: Integer;
+begin
+  hLockWSData.Enter;
+  try
+    if WSData.wVersion <> 0 then
+    begin
+      {$IFDEF DEBUG}
+      {if FDebugMode then }dbg('libssh2: WSACleanup:');
+      {$ENDIF}
+      R := WSACleanup();
+      {$IFDEF DEBUG}
+      {if FDebugMode then }dbg('libssh2: WSACleanup. R:'+IntToStr(R));
+      {$ENDIF}
+      if R = 0 then
+        WSData.wVersion := 0;
+    end;
+   finally
+    hLockWSData.Leave;
+  end;
+end;
+
+procedure WSDataFInit();
+begin
+  if not IsLibrary then // https://docs.microsoft.com/en-us/windows/win32/api/winsock/nf-winsock-wsacleanup
+    WSDataCleanup();
+  FreeAndNil(hLockWSData);
+end;
+
+{procedure ProcessMsgs();
+var Msg: TMsg;
+begin
+  if (GetCurrentThreadID = MainThreadID)
+    and (Application <> nil) and (Application.MainForm <> nil) then
+  begin
+    Application.ProcessMessages;
+  end
+  else
+  begin
+    if PeekMessage(Msg, 0, 0, 0, PM_REMOVE) then begin
+      if Msg.Message <> WM_QUIT then begin
+        TranslateMessage(Msg);
+        DispatchMessage(Msg);
+      end;
+    end;
+  end;
+end;}
 
 function FromOctal(const S: string): Cardinal;
 var
@@ -785,7 +885,7 @@ const
   // this was only tested on openssh server listing
   // hence the above constants for pos,
   // dunno if this is standardized or not
-  function ExtractEntryData(ALongEntry: PAnsiChar; const APosition: Integer): string; inline;
+  function ExtractEntryData(ALongEntry: PAnsiChar; const APosition: Integer): string; // {$ifdef _inline_}inline;{$endif}
   var
     I, J, L, K: Integer;
     S: string;
@@ -939,7 +1039,7 @@ procedure TSFTPItems.SortDefault;
 var
   T: TSFTPItem;
 
-  function MyCmpWStr(const W1, W2: WideString): Integer; inline;
+  function MyCmpWStr(const W1, W2: WideString): Integer; {$ifdef _inline_}inline;{$endif}
   begin
     //Result := WideCompareStr(W1, W2) //CompareStringW(LOCALE_INVARIANT, 0, PWideChar(W1), -1, PWideChar(W2), -1);
     if W1 > W2 then
@@ -1068,7 +1168,7 @@ var
   R: Integer; // last call SSH state
   sError, sErrorFirst, sException: string; // cached last SSH Error
 
-  procedure log(const S: string); inline;
+  procedure log(const S: string); {$ifdef _inline_}inline;{$endif}
   begin
     //--if ADebugMode then
     dbg('connect: ' + S); // optional!
@@ -1457,7 +1557,7 @@ var
   KeepAliveTimeOut, i: Integer;
 label
   L_AUTH_REPEAT;
-begin
+begin // procedure TSSH2Client.Connect
   if Connected then
     Exit;
   ADebugMode := fDebugMode;
@@ -1470,12 +1570,14 @@ begin
   if ADebugMode then log('CreateSocket.'); // @dbg
   if Sock = INVALID_SOCKET then
     Exit;
+
   if ADebugMode then log('ConnectSocket:'); // @dbg
   OK := ConnectSocket(Sock);
   if ADebugMode then log('ConnectSocket.'); // @dbg
   if not OK then
     RaiseSSHError(FLastErrStr);
   FSocket := Sock;
+
   if FSession <> nil then
   begin
     if ADebugMode then log('libssh2_session_free:'); // @dbg
@@ -1790,7 +1892,7 @@ begin
   end;
 
   if ADebugMode then log('Done!'); // @dbg
-end;
+end; // procedure TSSH2Client.Connect
 
 function TSSH2Client.ConnectSocket(var S: Integer): Boolean;
 type
@@ -1820,8 +1922,8 @@ type
         break;
       P := P^.ai_next;
     end;
-    if PData.ConnectRes = -1 then
-      WSACleanup;
+    //--if PData.ConnectRes = -1 then
+    //--  WSACleanup;
     PData.HaveRes := True;
   end;
 
@@ -1831,7 +1933,7 @@ var
   Hints: addrinfo;
   IpFamily: Integer;
   E: TMethod;
-begin
+begin // function TSSH2Client.ConnectSocket
   Result := False;
   if S <> INVALID_SOCKET then
   begin
@@ -1865,7 +1967,7 @@ begin
       Worker.Start;
       while not(Data.HaveRes or FCanceled or Application.Terminated) do
       begin
-        ProcessMsgs;
+        //--ProcessMsgs; //??
         Sleep(1);
       end;
       Worker.Stop;
@@ -1883,7 +1985,7 @@ begin
     if not FCanceled then
       Result := Data.ConnectRes <> -1;
   end;
-end;
+end; // function TSSH2Client.ConnectSocket
 
 constructor TSSH2Client.Create(AOwner: TComponent);
 begin
@@ -1912,11 +2014,9 @@ begin
 end;
 
 function TSSH2Client.CreateSocket: Integer;
-var
-  WSData: TWSAData;
 begin
   Result := INVALID_SOCKET;
-  if WSAStartup(MakeWord(2, 2), WSData) <> 0 then
+  if WSDataStartup() <> 0 then
   begin
     RaiseSSHError('Invalid winsock version!');
     Exit;
@@ -1961,13 +2061,12 @@ begin
       closesocket(FSocket);
       FSocket := INVALID_SOCKET;
     end;
-    WSACleanup;
+    //--WSACleanup();
     FConnected := False;
   end;
 end;
 
-procedure TSSH2Client.DoOnFingerprint(const AState: TFingerprintState;
-  var AAction: TConnectHashAction);
+procedure TSSH2Client.DoOnFingerprint(const AState: TFingerprintState; var AAction: TConnectHashAction);
 begin
   if Assigned(FOnFingerprint) then
     FOnFingerprint(Self, AState, AAction);
@@ -2786,12 +2885,15 @@ end;
 
 initialization
   GSSH2Init := 0;
+  WSDataInit();
   {$if declared(uHVDll)}
   dll_ws2_32 := TDll.Create(dll_ws2_32_name, dll_ws2_32_entires);
   //dll_ws2_32.Load(); // @dbg
   {$ifend}
 finalization
+  WSDataFInit();
   {$if declared(uHVDll)}
-  dll_ws2_32.Unload;
+  if Assigned(dll_ws2_32) then
+    dll_ws2_32.Unload;
   {$ifend}
 end.
