@@ -1,4 +1,4 @@
-{ uMySFTPClient.pas } // version: 2020.1112.1120
+{ uMySFTPClient.pas } // version: 2020.1114.2017
 { **
   *  Copyright (c) 2010, Zeljko Marjanovic <savethem4ever@gmail.com>
   *  This code is licensed under MPL 1.1
@@ -43,6 +43,12 @@ const
   SFTPCLIENT_VERSION = '0.5';
 
 type
+  {$if not declared(AnsiString)}
+  AnsiString = string;
+  {$ifend}
+  {$if not declared(RawByteString)}
+  RawByteString = AnsiString;
+  {$ifend}
   {$if not declared(UnicodeString)}
   UnicodeString = WideString;
   {$ifend}
