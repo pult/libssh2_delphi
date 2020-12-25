@@ -5,6 +5,7 @@
 ![](https://img.shields.io/github/forks/pult/libssh2_delphi.svg)
 ![](https://img.shields.io/github/contributors/pult/libssh2_delphi.svg)
 ![](https://img.shields.io/github/issues/pult/libssh2_delphi.svg)
+![](https://img.shields.io/github/issues-pr/pult/libssh2_delphi.svg)
 
 - **Base author:**
       - [Zeljko Marjanovic] (https://bitbucket.org/ZeljkoMarjanovic/libssh2-delphi)
