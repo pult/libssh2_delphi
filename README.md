@@ -3,6 +3,7 @@
 ![](https://tokei.rs/b1/github/pult/libssh2_delphi?category=files)
 ![](https://img.shields.io/github/stars/pult/libssh2_delphi.svg)
 ![](https://img.shields.io/github/forks/pult/libssh2_delphi.svg)
+![](https://img.shields.io/github/contributors/pult/libssh2_delphi.svg)
 ![](https://img.shields.io/github/issues/pult/libssh2_delphi.svg)
 
 - **Base author:**
