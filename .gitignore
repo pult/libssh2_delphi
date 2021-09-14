@@ -40,8 +40,8 @@
 *.rsm
 *.tds
 *.dcu
-*.lib
-*.a
+#*.lib
+#*.a
 *.o
 *.ocx
 *.dex
