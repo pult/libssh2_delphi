@@ -1,4 +1,4 @@
-{ libssh2.pas } // version: 2020.1112.0835
+{ libssh2.pas } // version: 2021.0914.0553
 { **
   *  Delphi/Pascal Wrapper around the library "libssh2"
   *    Base repository:
@@ -9,6 +9,19 @@
   *          https://github.com/pult/libssh2_delphi/
   * }
 unit libssh2;
+
+(*{$IFDEF MSWINDOWS}
+  {$IFDEF WIN32}
+    {$HPPEMIT ''}
+    {$HPPEMIT '#pragma link "libssh2.lib"'}
+    {$HPPEMIT ''}
+  {$ENDIF}
+  {$IFDEF WIN64}
+    {$HPPEMIT ''}
+    {$HPPEMIT '#pragma link "libssh2.a"'}
+    {$HPPEMIT ''}
+  {$ENDIF}
+{$ENDIF}//*)
 
 // **zm ** translated to pascal
 
@@ -91,6 +104,7 @@ type
   libssh2_int64_t = Int64;
   uint32_t = UInt;
   ssize_t = Integer;
+  {$EXTERNALSYM time_t}
   time_t = ULong;
 
   {$IFDEF FPC}
@@ -109,13 +123,13 @@ const
 {-to make the BANNER define (used by src/session.c) be a valid SSH }
 {-banner. Release versions have no appended strings and may of course not }
 {=have dashes either. }
-  _LIBSSH2_VERSION = '1.9.0';
+  _LIBSSH2_VERSION = '1.2.8';
 
 {+// The numeric version number is also available "in parts" by using these }
 {=defines: }
   LIBSSH2_VERSION_MAJOR = 1;
   LIBSSH2_VERSION_MINOR = 2;
-  LIBSSH2_VERSION_PATCH = 6;
+  LIBSSH2_VERSION_PATCH = 8;
 
   SHA_DIGEST_LENGTH = 20;
   MD5_DIGEST_LENGTH = 16;
@@ -204,6 +218,7 @@ type
   PLIBSSH2_KNOWNHOSTS = ^LIBSSH2_KNOWNHOSTS;
   PLIBSSH2_AGENT = ^LIBSSH2_AGENT;
 
+  {$EXTERNALSYM SIZE_T}
   SIZE_T = UINT;
   PSIZE_T = ^SIZE_T;
 
