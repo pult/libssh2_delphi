@@ -1,4 +1,4 @@
-{ libssh2.inc } // version: 2020.0919.0015
+{ libssh2.inc } // version: 2023.0809.0400
 
 {$IFDEF FPC}
   {$ALIGN 8} // For packed record
@@ -10,6 +10,14 @@
 
     {$IF CompilerVersion >= 25.00}{XE4Up}
       {$ZEROBASEDSTRINGS OFF}
+
+      {$IF CompilerVersion >= 33.00} // 10.3 Rio
+        {$WARN UNSAFE_CAST OFF}                // W1048
+        {$WARN EXPLICIT_STRING_CAST OFF}       // W1059
+        {$WARN EXPLICIT_STRING_CAST_LOSS OFF}  // W1060
+        {$WARN IMPLICIT_INTEGER_CAST_LOSS OFF} // W1071
+        {$WARN IMPLICIT_CONVERSION_LOSS OFF}   // W1072
+      {$IFEND}
     {$IFEND}
 
   {$ENDIF}
