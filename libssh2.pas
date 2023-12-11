@@ -1,4 +1,4 @@
-{ libssh2.pas } // version: 2021.0914.0553
+{ libssh2.pas } // version: 2023.1210.1100
 { **
   *  Delphi/Pascal Wrapper around the library "libssh2"
   *    Base repository:
@@ -1046,6 +1046,14 @@ var libssh2_channel_set_blocking: procedure(channel: PLIBSSH2_CHANNEL;
                                       blocking: Integer); cdecl;
 {$ifend}
 
+{$if not declared(uHVDll)}
+function libssh2_session_get_timeout(session: PLIBSSH2_SESSION): LONG; cdecl;
+procedure libssh2_session_set_timeout(session: PLIBSSH2_SESSION; timeout: LONG); cdecl;
+{$else}
+var libssh2_session_get_timeout: function (session: PLIBSSH2_SESSION): LONG; cdecl;
+var libssh2_session_set_timeout procedure(session: PLIBSSH2_SESSION; timeout: LONG); cdecl;
+{$ifend}
+
 {+// libssh2_channel_handle_extended_data is DEPRECATED, do not use!*/ }
 
 {$if not declared(uHVDll)}
@@ -1778,6 +1786,8 @@ function libssh2_channel_window_write_ex; external libssh2_name{$ifdef allow_del
 procedure libssh2_session_set_blocking; external libssh2_name{$ifdef allow_delayed} delayed{$endif};
 function libssh2_session_get_blocking; external libssh2_name{$ifdef allow_delayed} delayed{$endif};
 procedure libssh2_channel_set_blocking; external libssh2_name{$ifdef allow_delayed} delayed{$endif};
+function libssh2_session_get_timeout; external libssh2_name{$ifdef allow_delayed} delayed{$endif};
+procedure libssh2_session_set_timeout; external libssh2_name{$ifdef allow_delayed} delayed{$endif};
 procedure libssh2_channel_handle_extended_data; external libssh2_name{$ifdef allow_delayed} delayed{$endif};
 function libssh2_channel_handle_extended_data2; external libssh2_name{$ifdef allow_delayed} delayed{$endif};
 function libssh2_channel_flush_ex; external libssh2_name{$ifdef allow_delayed} delayed{$endif};
@@ -1821,7 +1831,7 @@ function libssh2_trace_sethandler; external libssh2_name{$ifdef allow_delayed} d
 {$else}
 var
   dll_libssh2 : TDll;
-  dll_libssh2_entires : array[0..82] of HVDll.TEntry = (
+  dll_libssh2_entires : array[0..84] of HVDll.TEntry = (
     (Proc: @@libssh2_init; Name: 'libssh2_init'),
     (Proc: @@libssh2_exit; Name: 'libssh2_exit'),
     (Proc: @@libssh2_session_init_ex; Name: 'libssh2_session_init_ex'),
@@ -1867,6 +1877,8 @@ var
     (Proc: @@libssh2_session_set_blocking; Name: 'libssh2_session_set_blocking'),
     (Proc: @@libssh2_session_get_blocking; Name: 'libssh2_session_get_blocking'),
     (Proc: @@libssh2_channel_set_blocking; Name: 'libssh2_channel_set_blocking'),
+    (Proc: @@libssh2_session_get_timeout; Name: 'libssh2_session_get_timeout'),
+    (Proc: @@libssh2_session_set_timeout; Name: 'libssh2_session_set_timeout'),
     (Proc: @@libssh2_channel_handle_extended_data; Name: 'libssh2_channel_handle_extended_data'),
     (Proc: @@libssh2_channel_handle_extended_data2; Name: 'libssh2_channel_handle_extended_data2'),
     (Proc: @@libssh2_channel_flush_ex; Name: 'libssh2_channel_flush_ex'),

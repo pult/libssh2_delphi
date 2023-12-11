@@ -1,4 +1,4 @@
-{ uMySFTPClient.pas } // version: 2020.1114.2017
+{ uMySFTPClient.pas } // version: 2023.1211.1600
 { **
   *  Copyright (c) 2010, Zeljko Marjanovic <savethem4ever@gmail.com>
   *  This code is licensed under MPL 1.1
@@ -202,7 +202,8 @@ type
     FLastErrStr: string;
     FBlockingMode: Boolean;
     FKeepAlive: Boolean;
-    FTimeOut: Integer; // keepalive timeout interval in seconds
+    FKeepAliveTimeOut: Integer; // keepalive timeout interval in seconds
+    FTimeOut: Integer; // socket timeout interval in seconds
     FSockBufLen: Integer;
     FHashMgr: IHashManager;
     FSocket: Integer;
@@ -221,6 +222,7 @@ type
     function GetLibString: string;
     procedure SetBlockingMode(Value: Boolean);
     procedure SetKeepAlive(Value: Boolean);
+    procedure SetKeepAliveTimeOut(Value: Integer);
     procedure SetTimeOut(Value: Integer);
   protected
     function GetSessionPtr: PLIBSSH2_SESSION;
@@ -251,6 +253,7 @@ type
     property IPVersion: TIPVersion read FIPVersion write FIPVersion;
     property BlockingMode: Boolean read FBlockingMode write SetBlockingMode default True;
     property KeepAlive: Boolean read FKeepAlive write SetKeepAlive;
+    property KeepAliveTimeOut: Integer read FKeepAliveTimeOut write SetKeepAliveTimeOut;
     property TimeOut: Integer read FTimeOut write SetTimeOut;
     property SockSndRcvBufLen: Integer read FSockBufLen write FSockBufLen;
     property AuthModes: TAuthModes read FAuthModes write SetAuthModes default [amTryAll];
@@ -2160,7 +2163,8 @@ begin
   //FCanceled := False;
   FBlockingMode := True;
   //FKeepAlive := False;
-  FTimeOut := 10;
+  FKeepAliveTimeOut := 10;
+  FTimeOut := 90;
   FSockBufLen := 8 * 1024;
   FSocket := INVALID_SOCKET;
   FCodePage := CP_UTF8;
@@ -2449,31 +2453,56 @@ begin
   end;
 end;
 
-procedure TSSH2Client.SetTimeOut(Value: Integer);
-var
-  KeepAliveTimeOut, R, i: Integer;
+procedure TSSH2Client.SetKeepAliveTimeOut(Value: Integer);
+var ATimeOut: Integer; //R, i: Integer;
 begin
-  if Value < 0 then Value := 0;
+  if Value < 0 then Value := 0; if (Value > 0) and (Value<10) then Value := 10;
+  if (FKeepAliveTimeOut <> Value) or (Assigned(FSession) and not fConnected) then
+  begin
+    FKeepAliveTimeOut := Value;
+    //
+    if Assigned(FSession) then
+    begin
+      ATimeOut := FKeepAliveTimeOut;
+      if fDebugMode then dbg(strwhen('connect: ', fConnected)+'libssh2_keepalive_config: active: '+BoolToStr(FKeepAlive, True)+'; seconds: ' + IntToStr(ATimeOut));
+      libssh2_keepalive_config(FSession, bool2int(FKeepAlive), ATimeOut); // FTimeOut - number of seconds
+      // check/read keepalive timeout settings:
+      (*
+      if not fBlockingMode then
+      begin
+        i := 0; //? i := bool2int( (not fBlockingMode) );
+        R := libssh2_keepalive_send(FSession, {seconds_to_next:}i);
+        while (R = LIBSSH2_ERROR_EAGAIN) do begin
+          waitsocket();
+          R := libssh2_keepalive_send(FSession, {seconds_to_next:}i);
+        end;
+        //if R < 0 then ;
+        if fDebugMode then dbg(strwhen('connect: ', fConnected)+'libssh2_keepalive_config. OK: '+BoolToStr(i = KeepAliveTimeOut, True));
+      end;
+      *)
+    end;
+  end;
+end;
+
+procedure TSSH2Client.SetTimeOut(Value: Integer);
+var ATimeOut: Integer;
+begin
+  if Value < 0 then Value := 0; if (Value > 0) and (Value<10) then Value := 10;
   if (FTimeOut <> Value) or (Assigned(FSession) and not fConnected) then
   begin
     FTimeOut := Value;
     //
     if Assigned(FSession) then
     begin
-      // send timeout
-      KeepAliveTimeOut := FTimeOut;
-      if (KeepAliveTimeOut > 0) and (KeepAliveTimeOut<10) then KeepAliveTimeOut := 10;
-      if fDebugMode then dbg(strwhen('connect: ', fConnected)+'libssh2_keepalive_config: active: '+BoolToStr(FKeepAlive, True)+'; seconds: ' + IntToStr(KeepAliveTimeOut));
-      libssh2_keepalive_config(FSession, bool2int(FKeepAlive), KeepAliveTimeOut); // FTimeOut - number of seconds
-      // check/read keepalive timeout settings:
-      i := 0;
-      R := libssh2_keepalive_send(FSession, {seconds_to_next:}i);
-      while (R = LIBSSH2_ERROR_EAGAIN) do begin
-        waitsocket();
-        R := libssh2_keepalive_send(FSession, {seconds_to_next:}i);
-      end;
-      //if R < 0 then ;
-      if fDebugMode then dbg(strwhen('connect: ', fConnected)+'libssh2_keepalive_config. OK: '+BoolToStr(i = KeepAliveTimeOut, True));
+      ATimeOut := FTimeOut;
+      if fDebugMode then dbg(strwhen('connect: ', fConnected)+'libssh2_session_set_timeout: seconds: ' + IntToStr(ATimeOut));
+      libssh2_session_set_timeout(FSession, ATimeOut);
+
+      ATimeOut := libssh2_session_get_timeout(FSession);
+      if fDebugMode then dbg(strwhen('connect: ', fConnected)+'libssh2_session_get_timeout: seconds: ' + IntToStr(ATimeOut));
+
+      if FTimeOut <> ATimeOut then
+        FTimeOut := ATimeOut;
     end;
   end;
 end;
