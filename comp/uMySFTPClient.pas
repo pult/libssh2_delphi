@@ -2150,7 +2150,7 @@ begin
   end;
 end;
 
-{$if not declared(GetTickInterval) and declared(LIBSSH2)}
+{$if not declared(GetTickInterval)}
 function GetTickInterval(StartTickCount, FinishTickCount: Cardinal): Cardinal;
 // NB: Result is in milliseconds!
 begin
