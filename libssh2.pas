@@ -1047,11 +1047,11 @@ var libssh2_channel_set_blocking: procedure(channel: PLIBSSH2_CHANNEL;
 {$ifend}
 
 {$if not declared(uHVDll)}
-function libssh2_session_get_timeout(session: PLIBSSH2_SESSION): LONG; cdecl;
-procedure libssh2_session_set_timeout(session: PLIBSSH2_SESSION; timeout: LONG); cdecl;
+function libssh2_session_get_timeout(session: PLIBSSH2_SESSION): LongInt; cdecl;
+procedure libssh2_session_set_timeout(session: PLIBSSH2_SESSION; timeout: LongInt); cdecl;
 {$else}
-var libssh2_session_get_timeout: function (session: PLIBSSH2_SESSION): LONG; cdecl;
-var libssh2_session_set_timeout procedure(session: PLIBSSH2_SESSION; timeout: LONG); cdecl;
+var libssh2_session_get_timeout: function (session: PLIBSSH2_SESSION): LongInt; cdecl;
+var libssh2_session_set_timeout: procedure(session: PLIBSSH2_SESSION; timeout: LongInt); cdecl;
 {$ifend}
 
 {+// libssh2_channel_handle_extended_data is DEPRECATED, do not use!*/ }
