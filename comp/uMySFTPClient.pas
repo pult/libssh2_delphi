@@ -234,6 +234,8 @@ type
     function MyDecode(const S: AnsiString): UnicodeString; virtual;
 
     function waitsocket(timeout_tv_sec: Longint = 10): Integer;
+    function waitsocketfordata(Channel: PLIBSSH2_CHANNEL; timeout_tv_sec: integer {= -1};
+      out ErrorCode: integer; out ABuf: AnsiString): Boolean;
 
     property Socket: Integer read FSocket;
     property Session: PLIBSSH2_SESSION read FSession;
@@ -732,7 +734,7 @@ begin
       E := TEncoding.Ansi;
     1200:  // CP_UTF16LE
       E := TEncoding.Unicode;
-    65001: // CP_UTF8
+    65001: // CP_UTF8 // TODO: failed decode "dir" utf8 data as "fScSSHShell.DecodeBytes" }
       E := TEncoding.UTF8;
     else
     begin
@@ -1472,6 +1474,10 @@ var
     if ADebugMode then log('libssh2_agent_init:'); //@dbg
     try
       Agent := libssh2_agent_init(FSession);
+      {???while (Agent = nil) and (libssh2_session_last_errno(FSession) = LIBSSH2_ERROR_EAGAIN) do begin
+        waitsocket();
+        Agent := libssh2_agent_init(FSession);
+      end;}
       if ADebugMode then log('libssh2_agent_init.'); //@dbg
       if Agent <> nil then
       begin
@@ -2141,6 +2147,94 @@ begin
       dbg('waitsocket. ERROR: ' + SysErrorMessage(WSAGetLastError))
     else
       dbg('waitsocket. R: '+IntToStr(Result));
+  end;
+end;
+
+{$if not declared(GetTickInterval) and declared(LIBSSH2)}
+function GetTickInterval(StartTickCount, FinishTickCount: Cardinal): Cardinal;
+// NB: Result is in milliseconds!
+begin
+  // each 49.7 days ticks are reseted, so we should take it into attention
+  // and use GetTickInterval for avoiding the out of range error
+  if FinishTickCount >= StartTickCount then
+    Result := FinishTickCount - StartTickCount
+  else
+    Result := Cardinal($FFFFFFFF) - StartTickCount + FinishTickCount + 1;
+end;
+{$ifend}
+
+function TSSH2Client.waitsocketfordata(Channel: PLIBSSH2_CHANNEL; timeout_tv_sec: integer{ = -1};
+  out ErrorCode: integer; out ABuf: AnsiString): Boolean;
+var
+  tc, td: Cardinal;
+  AMillisecondsTimeout: Cardinal;
+  R: Integer;
+  ABufLen: Integer; ATimeOut: Integer;
+begin
+  Result := False; ErrorCode := 0;
+  if FDebugMode then dbg('waitsocketfordata:');
+
+  ATimeOut := FTimeOut;
+  if timeout_tv_sec > 0 then begin
+    AMillisecondsTimeout := {SecondsTimeout:}timeout_tv_sec * 1000;
+    if AMillisecondsTimeout = 0 then
+      AMillisecondsTimeout := 90*1000 // MaxInt
+    else if AMillisecondsTimeout > (1*60*60*1000) then
+      AMillisecondsTimeout := (1*60*60*1000); // wait limitation to one hour.
+
+    if ATimeOut <> timeout_tv_sec then
+      TimeOut := timeout_tv_sec;
+  end else AMillisecondsTimeout := 0;
+
+  try
+
+    ABufLen := 1;
+    SetLength(ABuf, ABufLen+1);
+    ABuf[1] := #0; ABuf[ABufLen+1] := #0;
+
+    R := 0; if R <> 0 then ;
+    tc := GetTickCount; //td := 0;
+    //-while {(not fCancelled) and} {(R <= 0) and} ((td <= AMillisecondsTimeout) or (timeout_tv_sec < 0)) do
+    while True do
+    begin
+      if FDebugMode then dbg('libssh2_channel_read:');
+      R := libssh2_channel_read(Channel, PAnsiChar(ABuf), ABufLen);
+      if FDebugMode then dbg('libssh2_channel_read. R: '+IntToStr(R));
+      if R > 0 then begin
+        Result := True;
+        if R > ABufLen then R := ABufLen;
+        SetLength(ABuf, R);
+        if FDebugMode then dbg('waitsocketfordata. True; R: '+IntToStr(R));
+        ErrorCode := R;
+        Exit;
+      end;
+      if (R <> LIBSSH2_ERROR_EAGAIN) then begin
+        if (R = LIBSSH2_ERROR_TIMEOUT) then begin
+          //while waitsocket() = WSAEINPROGRESS do ;
+        end else Break;
+      end;
+      R := 0; if R > 0 then ;
+      td := GetTickInterval(tc, GetTickCount);
+      if (timeout_tv_sec > 0) and (td > AMillisecondsTimeout) then begin
+        R := LIBSSH2_ERROR_TIMEOUT;
+        Break;
+      end;
+    end;
+
+    ABuf := '';
+    //--if R = 0 then
+    //--  R := LIBSSH2_ERROR_TIMEOUT;
+    if R = 0 then begin
+      Result := True;
+      if FDebugMode then dbg('waitsocketfordata. True; R: 0');
+    end else begin
+      if FDebugMode then dbg('waitsocketfordata. False; R: '+IntToStr(R));
+    end;
+    ErrorCode := R;
+
+  finally
+    if ATimeOut <> FTimeOut then
+      TimeOut := ATimeOut;
   end;
 end;
 
