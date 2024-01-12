@@ -1,3 +1,4 @@
+{ uFxtDelayedHandler.pas } //  version: 2020.0615.1000
 // Failure load library by "delayed" : addeed exception information
 // http://docwiki.embarcadero.com/Libraries/XE6/en/SysInit.SetDliFailureHook2
 // http://docwiki.embarcadero.com/CodeExamples/XE6/en/DelayedLoading_%28Delphi%29
@@ -11,6 +12,11 @@ unit uFxtDelayedHandler;
 interface
 
 {$IF CompilerVersion >= 21.00}
+
+{$IF CompilerVersion >= 33.00} // DX 10.3 Rio
+  {$WARN EXPLICIT_STRING_CAST OFF} // W1059
+{$IFEND}
+
 uses
   SysUtils;
 
@@ -32,19 +38,19 @@ var
 begin
   if dliNotify = dliFailLoadLibrary then
   begin
-    raise ELoadLibrary.Create('Could not load library "' + string(pdli.szDll) + '"');
+    raise ELoadLibrary.Create('Could not load library "' + string(AnsiString(pdli.szDll)) + '"');
   end
   else if dliNotify = dliFailGetProcAddress then
   begin
     if pdli.dlp.fImportByName then
     begin
-      S := '"' + string(pdli.dlp.szProcName) + '"';
+      S := '"' + string(AnsiString(pdli.dlp.szProcName)) + '"';
     end
     else
     begin
       S := 'index ' + IntToStr(pdli.dlp.dwOrdinal);
     end;
-    S := 'Could not load function ' + S + ' from library "' + string(pdli.szDll) + '"';
+    S := 'Could not load function ' + S + ' from library "' + string(AnsiString(pdli.szDll)) + '"';
     raise EGetProcAddress.Create(S);
   end;
 
