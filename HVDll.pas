@@ -1,7 +1,7 @@
-{ HVDll.pas } // version: 2020.0615.1000
+{ HVDll.pas } // version: 2024.0111.2340
 unit HVDll;
 //
-// Support for DelayLoading of DLLs á la VC++6.0
+// Support for DelayLoading of DLLs la VC++6.0
 // Written by Hallvard Vassbotn (hallvard@falcon.no), January 1999
 //
 //
@@ -53,7 +53,7 @@ interface
 
   {$ALIGN 8} // For packed record
   {$MINENUMSIZE 1}
-{$ELSE !FPC}
+{$ELSE  !FPC}
   {$B-,R-}
 
   {$ASSERTIONS OFF}
@@ -62,10 +62,19 @@ interface
     {$ALIGN 8} // For packed record
     {$MINENUMSIZE 1}
 
+    {$WARN UNSAFE_CAST OFF} // W1048 Unsafe typecast of '*' to '*'
+
     {$IF CompilerVersion >= 25.00}{XE4Up}
       {$ZEROBASEDSTRINGS OFF}
+
+      {$IF CompilerVersion >= 33.00} //?
+        {$WARN EXPLICIT_STRING_CAST OFF}       // W1059 Explicit string cast from 'AnsiString' to 'string'
+        {$WARN IMPLICIT_INTEGER_CAST_LOSS OFF} // W1071 Implicit integer cast with potential data loss from '*' to '*'
+      {$IFEND}
+
     {$IFEND}
-  {$ENDIF}
+  {$ELSE  !UNICODE}
+  {$ENDIF !UNICODE}
 {$ENDIF !FPC}
 
 //{$IFOPT D+}
@@ -86,13 +95,14 @@ uses
   HVHeaps;
 
 const
-  uHVDll = 202006151000; // 2020-06-15 10:00
+  uHVDll = 202401112340; // 2024-01-11 23:40
+  //# fmt: yyyymmddhhnn
   {$EXTERNALSYM uHVDll}
   (*
   // Sample for checking:
   // <sample>
   {$ifndef fpc}{$warn comparison_true off}{$endif}
-  {$if (not declared(uHVDll)) or (uHVDll < 202006151000)}
+  {$if (not declared(uHVDll)) or (uHVDll < 202401112340)}
     {$ifndef fpc}{$warn message_directive on}{$endif}
       {$MESSAGE WARN 'Please use latest "HVDll.pas" from "https://github.com/pult/dll_load_delay"'}
       // or :
@@ -461,7 +471,7 @@ begin
   if Count = 0 then
     Exit;
   // Get a memory block large enough for the thunks
-  Size := SizeOf(TThunkHeader) + SizeOf(TThunk) * Count;
+  Size := SizeOf(TThunkHeader) + SizeOf(TThunk) * Cardinal(Count);
   Dlls.CodeHeap.GetMem(FThunkingCode, Size);
 
   // Generate some machine code in the thunks
@@ -557,7 +567,7 @@ end;
 function SysErrorMessage(ErrorCode: Cardinal; AModuleHandle: THandle = 0): string;
 var
   Buffer: {$IFDEF UNICODE}PWideChar{$ELSE}PAnsiChar{$ENDIF};
-  Len: Integer;
+  Len: Cardinal;
   Flags: DWORD;
   U: {$IFDEF UNICODE}UnicodeString{$ELSE}AnsiString{$ENDIF};
 begin
@@ -581,11 +591,12 @@ begin
   try
     { Remove the undesired line breaks and '.' char }
     {$IFDEF UNICODE}
-    while (Len > 0) and ((Buffer[Len - 1] <= WideChar(#32)) or (Buffer[Len - 1] = WideChar('.'))) do
+    while (Len > 0) and ((Buffer[Len - 1] <= WideChar(#32)) or (Buffer[Len - 1] = WideChar('.'))) do begin
     {$ELSE}
-    while (Len > 0) and ((Buffer[Len - 1] <= AnsiChar(#32)) or (Buffer[Len - 1] = AnsiChar('.'))) do
-    {$ENDIF};
+    while (Len > 0) and ((Buffer[Len - 1] <= AnsiChar(#32)) or (Buffer[Len - 1] = AnsiChar('.'))) do begin
+    {$ENDIF}
       Dec(Len);
+    end;
     { Convert to Delphi string }
     SetString(U, Buffer, Len);
     Result := string(U);
@@ -679,7 +690,7 @@ end;
 
 function AnsiCompareText(const S1, S2: string): Integer;
 begin
-  Result := CompareString(LOCALE_USER_DEFAULT, NORM_IGNORECASE, PChar(S1),
+  Result := CompareString(LOCALE_USER_DEFAULT, NORM_IGNORECASE or SORT_STRINGSORT, PChar(S1),
     Length(S1), PChar(S2), Length(S2)) - 2;
 end;
 
@@ -954,10 +965,10 @@ var
   i: Integer;
   Obj: TObject;
 begin
-  for i := FCount-1 downto 0 do
+  for i := {$IFDEF _MINI_}FCount{$ELSE}Count{$ENDIF}-1 downto 0 do
   begin
     Obj := Dlls[i];
-    FList^[i] := nil; // Put(i, nil);
+    {$IFDEF _MINI_}FList^{$ELSE}List{$ENDIF}[i] := nil; // Put(i, nil);
     Obj.Free;
   end;
   FCodeHeap.Free;
