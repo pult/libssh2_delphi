@@ -1,4 +1,4 @@
-{ uMySFTPClient.pas } // version: 2023.1211.1600
+{ uMySFTPClient.pas } //# version: 2024.0114.1600
 { **
   *  Copyright (c) 2010, Zeljko Marjanovic <savethem4ever@gmail.com>
   *  This code is licensed under MPL 1.1
@@ -17,11 +17,13 @@ unit uMySFTPClient;
 
 {$i libssh2.inc}
 {$IFDEF DEBUG}{$D+,L+}{$ENDIF}
+{$UNDEF _TEST_}
+
 interface
 
 uses
   {$IFDEF allow_hvdll}
-  HVDll, // alternative for: external ?dll_name name '?function_name' delayed;
+  HVDll, //# alternative for: external '%dll_name%' name '%function_name%' delayed;
   {$ENDIF}
   {$IFDEF WIN32}
   Windows, Messages,
@@ -30,18 +32,33 @@ uses
   {$ENDIF}
   Classes, SysUtils,
   WinSock,
-  //{$IFDEF MSWINDOWS}
-  //Winsock2, {$DEFINE _WINSOCK2_}
-  //{$ENDIF MSWINDOWS}
+  //-{$IFDEF MSWINDOWS}
+  //-Winsock2, {$DEFINE _WINSOCK2_}
+  //-{$ENDIF MSWINDOWS}
   SyncObjs,
   libssh2, libssh2_sftp;
 
-{$ifdef FPC}{$define _inline_}{$else}{$ifdef CONDITIONALEXPRESSIONS}{$IF CompilerVersion >= 25.00}{$define _inline_}{$IFEND}{$endif}{$endif}
-
 const
   AF_INET6 = 23;
-  SFTPCLIENT_VERSION = '0.5';
-
+  //#
+  SFTPCLIENT_VERSION = 202401141600;
+  //# version format : yyyymmddhhnn.
+  {$EXTERNALSYM SFTPCLIENT_VERSION}
+  (*
+  //# Sample for checking module version:
+  //# <sample>
+  //#
+  uses ... uMySFTPClient ...
+  {$warn comparison_true off}
+  {$if (not declared(SFTPCLIENT_VERSION)) or (SFTPCLIENT_VERSION < 202401141600)}
+    {$ifndef fpc}{$warn message_directive on}{$endif}
+    //{$MESSAGE WARN 'Need update module uMySFTPClient from "https://github.com/pult/libssh2_delphi/"'} // optional
+    //# or:
+    {$MESSAGE FATAL 'Need update module uMySFTPClient from "https://github.com/pult/libssh2_delphi/"'} // optional
+  {$ifend}{$warnings on}
+  //#
+  //# <\sample>
+  //*)
 type
   {$if not declared(AnsiString)}
   AnsiString = string;
@@ -72,14 +89,14 @@ type
 
   PAddrInfo = ^addrinfo;
     addrinfo = record
-    ai_flags: Integer; // AI_PASSIVE, AI_CANONNAME, AI_NUMERICHOST
-    ai_family: Integer; // PF_xxx
-    ai_socktype: Integer; // SOCK_xxx
-    ai_protocol: Integer; // 0 or IPPROTO_xxx for IPv4 and IPv6
-    ai_addrlen: ULONG; // Length of ai_addr
+    ai_flags: Integer;       // AI_PASSIVE, AI_CANONNAME, AI_NUMERICHOST
+    ai_family: Integer;      // PF_xxx
+    ai_socktype: Integer;    // SOCK_xxx
+    ai_protocol: Integer;    // 0 or IPPROTO_xxx for IPv4 and IPv6
+    ai_addrlen: ULONG;       // Length of ai_addr
     ai_canonname: PAnsiChar; // Canonical name for nodename
-    ai_addr: PSockAddr; // Binary address
-    ai_next: PAddrInfo; // Next structure in linked list
+    ai_addr: PSockAddr;      // Binary address
+    ai_next: PAddrInfo;      // Next structure in linked list
   end;
 
   TStructStat = struct_stat;
@@ -187,6 +204,7 @@ type
   TSSH2Client = class(TComponent)
   private
     FDebugMode: Boolean;
+    FLibSSH2Initialized: Boolean;
     FPrivKeyPass: string;
     FPrivKeyPath: TFileName;
     FAuthModes: TAuthModes;
@@ -203,10 +221,10 @@ type
     FBlockingMode: Boolean;
     FKeepAlive: Boolean;
     FKeepAliveTimeOut: Integer; // keepalive timeout interval in seconds
-    FTimeOut: Integer; // socket timeout interval in seconds
+    FTimeOut: Integer;          // socket timeout interval in seconds
     FSockBufLen: Integer;
     FHashMgr: IHashManager;
-    FSocket: Integer;
+    FSocket: TSocket;
     FSession: PLIBSSH2_SESSION;
     FOnFingerprint: TFingerprintEvent;
     FOnKeybInt: TKeybInteractiveEvent;
@@ -214,6 +232,8 @@ type
     FOnConnect: TNotifyEvent;
     FCodePage: Word;
     FCompression: Boolean;
+
+    procedure CheckLibSSH2Initialized();
     function GetConnected: Boolean;
     procedure SetConnected(const Value: Boolean);
     procedure SetAuthModes(const Value: TAuthModes);
@@ -226,9 +246,9 @@ type
     procedure SetTimeOut(Value: Integer);
   protected
     function GetSessionPtr: PLIBSSH2_SESSION;
-    function GetSocketHandle: Integer;
-    function CreateSocket: Integer; virtual;
-    function ConnectSocket(var S: Integer): Boolean; virtual;
+    function GetSocketHandle: TSocket;
+    function CreateSocket: TSocket; virtual;
+    function ConnectSocket(var S: TSocket): Boolean; virtual;
     procedure RaiseSSHError(const AMsg: string = ''; E: Integer = 0); virtual;
     function MyEncode(const WS: UnicodeString): AnsiString; virtual;
     function MyDecode(const S: AnsiString): UnicodeString; virtual;
@@ -237,11 +257,13 @@ type
     function waitsocketfordata(Channel: PLIBSSH2_CHANNEL; timeout_tv_sec: integer {= -1};
       out ErrorCode: integer; out ABuf: AnsiString): Boolean;
 
-    property Socket: Integer read FSocket;
+    property Socket: TSocket read FSocket;
     property Session: PLIBSSH2_SESSION read FSession;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
+
+    class function GetClassVersion: string;
 
     procedure Connect; virtual;
     procedure Disconnect; virtual;
@@ -367,26 +389,26 @@ implementation
 uses
   DateUtils, Forms, StrUtils, WideStrUtils;
 
-function strwhen(const s: string; cond: Boolean): string; {$ifdef _inline_}inline;{$endif}
+function strwhen(const s: string; cond: Boolean): string; {$ifdef allow_inline}inline;{$endif}
 begin
   if cond then Result := s else Result := '';
 end;
 
-procedure dbg(const S: string); {$ifdef _inline_}inline;{$endif}
+procedure dbg(const S: string); {$ifdef allow_inline}inline;{$endif}
 begin
   {$IFDEF MSWINDOWS}
   if Length(S) > 0 then OutputDebugString(PChar('libssh2:> ' + S));
   {$ENDIF}
 end;
 
-procedure dbgw(const S: UnicodeString); {$ifdef _inline_}inline;{$endif}
+procedure dbgw(const S: UnicodeString); {$ifdef allow_inline}inline;{$endif}
 begin
   {$IFDEF MSWINDOWS}
   if Length(S) > 0 then OutputDebugStringW(PWideChar('libssh2:> ' + S));
   {$ENDIF}
 end;
 
-function bool2int(b: Boolean): Integer; {$ifdef _inline_}inline;{$endif}
+function bool2int(b: Boolean): Integer; {$ifdef allow_inline}inline;{$endif}
 begin
   if b then Result := 1 else Result := 0;
 end;
@@ -423,7 +445,7 @@ const
 
 {$if declared(uHVDll)}
 var
-connect2 : function(S: TSocket; name: Pointer; namelen: Integer): Integer; stdcall;
+connect2 : function(S: TLibssh2Socket; name: Pointer; namelen: Integer): Integer; stdcall;
   // external dll_ws2_32_name name 'connect';
 
 getaddrinfo : function(pNodeName, pServiceName: PAnsiChar; const pHints: PAddrInfo;
@@ -445,7 +467,7 @@ freeaddrinfo : procedure(ai: PAddrInfo); stdcall;
   {$WARN SYMBOL_PLATFORM OFF} // W002
 {$endif}
 
-function connect2(S: TSocket; name: Pointer; namelen: Integer): Integer; stdcall;
+function connect2(S: TLibssh2Socket; name: Pointer; namelen: Integer): Integer; stdcall;
   external dll_ws2_32_name name 'connect'{$ifdef allow_delayed} delayed{$endif};
 
 function getaddrinfo(pNodeName, pServiceName: PAnsiChar; const pHints: PAddrInfo;
@@ -456,7 +478,7 @@ procedure freeaddrinfo(ai: PAddrInfo); stdcall; external dll_ws2_32_name name 'f
   {$ifdef allow_delayed} delayed{$endif};
 {$ifend !declared(uHVDll)}
 
-function TestBit(const ABits, AVal: Cardinal): Boolean; {$ifdef _inline_}inline;{$endif}
+function TestBit(const ABits, AVal: Cardinal): Boolean; {$ifdef allow_inline}inline;{$endif}
 begin
   Result := ABits and AVal { = AVal } <> 0;
 end;
@@ -584,7 +606,7 @@ function LocaleCharsFromUnicode(CodePage, Flags: Cardinal;
   UnicodeStr: PWideChar; UnicodeStrLen: Integer; LocaleStr: PAnsiChar;
   LocaleStrLen: Integer; DefaultChar: PAnsiChar; UsedDefaultChar: PLongBool): Integer;
   //{$ifdef FPC}inline;{$else}{$ifdef CONDITIONALEXPRESSIONS}{$IF CompilerVersion >= 25.00}inline;{$IFEND}{$endif}{$endif}
-  {$ifdef _inline_}inline;{$endif}
+  {$ifdef allow_inline}inline;{$endif}
 begin
   Result := WideCharToMultiByte(CodePage, Flags, UnicodeStr, UnicodeStrLen, LocaleStr,
     LocaleStrLen, DefaultChar, PBOOL(UsedDefaultChar));
@@ -612,7 +634,7 @@ end;
 function UnicodeFromLocaleChars(CodePage, Flags: Cardinal; LocaleStr: PAnsiChar;
   LocaleStrLen: Integer; UnicodeStr: PWideChar; UnicodeStrLen: Integer): Integer;
   //{$ifdef FPC}inline;{$else}{$ifdef CONDITIONALEXPRESSIONS}{$IF CompilerVersion >= 25.00}inline;{$IFEND}{$endif}{$endif}
-  {$ifdef _inline_}inline;{$endif}
+  {$ifdef allow_inline}inline;{$endif}
 begin
   Result := MultiByteToWideChar(CodePage, Flags, LocaleStr, LocaleStrLen,
     UnicodeStr, UnicodeStrLen);
@@ -920,7 +942,7 @@ const
   // this was only tested on openssh server listing
   // hence the above constants for pos,
   // dunno if this is standardized or not
-  function ExtractEntryData(ALongEntry: PAnsiChar; const APosition: Integer): string; // {$ifdef _inline_}inline;{$endif}
+  function ExtractEntryData(ALongEntry: PAnsiChar; const APosition: Integer): string; // {$ifdef allow_inline}inline;{$endif}
   var
     I, J, L, K: Integer;
     S: string;
@@ -1074,7 +1096,7 @@ procedure TSFTPItems.SortDefault;
 var
   T: TSFTPItem;
 
-  function MyCmpWStr(const W1, W2: WideString): Integer; {$ifdef _inline_}inline;{$endif}
+  function MyCmpWStr(const W1, W2: WideString): Integer; {$ifdef allow_inline}inline;{$endif}
   begin
     //Result := WideCompareStr(W1, W2) //CompareStringW(LOCALE_INVARIANT, 0, PWideChar(W1), -1, PWideChar(W2), -1);
     if W1 > W2 then
@@ -1188,6 +1210,42 @@ begin
   end;
 end;
 
+procedure TSSH2Client.CheckLibSSH2Initialized();
+var R, flags: Integer; OK: Boolean;
+begin
+  if not FLibSSH2Initialized then
+  begin
+    if InterlockedIncrement(GSSH2Init) = 1 then
+    begin
+      flags := 0; // or LIBSSH2_INIT_NO_CRYPTO
+      if FDebugMode then dbg('libssh2_init:');
+      //#
+      //#TEST:
+      //-{$if defined(_IDE_) and defined(_DEBUG_) and defined(_TEST_)}
+      //-if flags = 0 then; flags := 4097; // 4097 == $1001
+      //-{$ifend}
+      //#TEST.
+      //#
+      OK := False; R := 0;
+      try
+        R := libssh2_init(flags);
+        OK := R = 0;
+      except
+      end;
+      if FDebugMode then dbg('libssh2_init. R:'+IntToStr(R));
+      if OK then
+      begin
+        FLibSSH2Initialized := True;
+      end
+      else
+      begin
+        InterlockedDecrement(GSSH2Init);
+        RaiseSSHError('Error initializing libssh2.')
+      end;
+    end;
+  end;
+end;
+
 procedure TSSH2Client.Connect;
 type
   PAbstractData = ^TAbstractData;
@@ -1203,7 +1261,7 @@ var
   R: Integer; // last call SSH state
   sError, sErrorFirst, sException: string; // cached last SSH Error
 
-  procedure log(const S: string); {$ifdef _inline_}inline;{$endif}
+  procedure log(const S: string); {$ifdef allow_inline}inline;{$endif}
   begin
     //--if ADebugMode then
     dbg('connect: ' + S); // optional!
@@ -1217,6 +1275,20 @@ var
       if sErrorFirst = '' then sErrorFirst := sError;
     end;
   end;
+
+  //#TEST: test wrapper for "libssh2_session_init_ex"
+  {$if declared(test_libssh2_session_init_ex)}
+  function libssh2_session_init_ex(my_alloc: LIBSSH2_ALLOC_FUNC;
+                                   my_free: LIBSSH2_FREE_FUNC;
+                                   my_realloc: LIBSSH2_REALLOC_FUNC;
+                                   abstract: Pointer): PLIBSSH2_SESSION; cdecl;
+  begin
+    dbg('### test_libssh2_session_init_ex:');
+    Result := test_libssh2_session_init_ex(my_alloc, my_free, my_realloc, abstract);
+    dbg('### test_libssh2_session_init_ex. R:'+IntToStr({$if declared(NativeInt)}NativeInt{$else}Cardinal{$ifend}(Result)));
+  end;
+  {$ifend}
+  //#TEST.
 
   function HandleFingerprint(const AState: TFingerprintState; const F: Pointer): Boolean;
   var
@@ -1616,7 +1688,7 @@ var
   end;
 
 var
-  Sock, iRepeat, iRepeatLimit: Integer;
+  Sock: TSocket; iRepeat, iRepeatLimit: Integer;
   Fingerprint{, StoredFingerprint}: array of Byte;
   StoredFingerprint: Pointer;
   Abstract: TAbstractData;
@@ -1626,17 +1698,19 @@ var
   OK, AuthOK: Boolean;
   Prefs: AnsiString;
   HashMode: THashMode;
-  KeepAliveTimeOut, i: Integer;
+  KeepAliveTimeOut: UINT; i: Integer;
 label
   L_AUTH_REPEAT;
-begin // procedure TSSH2Client.Connect
+begin // procedure TSSH2Client.Connect:
   if Connected then
     Exit;
   ADebugMode := fDebugMode;
   if ADebugMode then log('Start:'); // @dbg
 
-  R := 0;
   FCanceled := False;
+
+  CheckLibSSH2Initialized();
+
   if ADebugMode then log('CreateSocket:'); // @dbg
   Sock := CreateSocket;
   if ADebugMode then log('CreateSocket.'); // @dbg
@@ -1820,10 +1894,9 @@ begin // procedure TSSH2Client.Connect
 
     // Connection timeout
     (* // ERROR: Could not get user auth list. // ERROR for DevAr.Demo.SSH.Server => moved lower!
-    KeepAliveTimeOut := FTimeOut;
-    if (KeepAliveTimeOut > 0) and (KeepAliveTimeOut<10) then
-      KeepAliveTimeOut := 10
-    else if KeepAliveTimeOut > 3*60 then
+    KeepAliveTimeOut := 0;
+    if (FTimeOut > 0) and (FTimeOut<10) then KeepAliveTimeOut := 10 else if (FTimeOut > 0) then KeepAliveTimeOut := FTimeOut;
+    if KeepAliveTimeOut > 3*60 then
       KeepAliveTimeOut := 3*60;
     //?if FKeepAlive then
     begin
@@ -1984,9 +2057,10 @@ begin // procedure TSSH2Client.Connect
     FConnected := True;
 
     // send timeout
-    KeepAliveTimeOut := FTimeOut;
-    if (KeepAliveTimeOut > 0) and (KeepAliveTimeOut<10) then
-      KeepAliveTimeOut := 10;
+    KeepAliveTimeOut := 0;
+    if (FTimeOut > 0) and (FTimeOut<10) then KeepAliveTimeOut := 10 else if (FTimeOut > 0) then KeepAliveTimeOut := FTimeOut;
+    //if KeepAliveTimeOut > 3*60 then
+    //  KeepAliveTimeOut := 3*60;
     //if FKeepAlive then
     begin
       if ADebugMode then log('libssh2_keepalive_config: active: '+BoolToStr(FKeepAlive, True)+'; seconds: ' + IntToStr(KeepAliveTimeOut)); // @dbg
@@ -2000,7 +2074,7 @@ begin // procedure TSSH2Client.Connect
         waitsocket();
         R := libssh2_keepalive_send(FSession, {seconds_to_next:}i);
       end;
-      if ADebugMode then log('libssh2_keepalive_send. OK: '+BoolToStr(i = KeepAliveTimeOut, True)+'; R: ' + IntToStr(R)); //@dbg
+      if ADebugMode then log('libssh2_keepalive_send. OK: '+BoolToStr(UINT(i) = KeepAliveTimeOut, True)+'; R: ' + IntToStr(R)); //@dbg
     end;
 
     if Assigned(FOnConnect) then
@@ -2019,17 +2093,16 @@ begin // procedure TSSH2Client.Connect
   if ADebugMode then log('Done!'); // @dbg
 end; // procedure TSSH2Client.Connect
 
-function TSSH2Client.ConnectSocket(var S: Integer): Boolean;
+function TSSH2Client.ConnectSocket(var S: TSocket): Boolean;
 type
-  PConectData = ^TConectData;
-
   TConectData = record
-    S: Integer;
+    S: TLibssh2Socket;
     ConnectRes: Integer;
     LastErr: string;
     ResAddrInfo: PAddrInfo;
     HaveRes: Boolean;
   end;
+  PConectData = ^TConectData;
 
   procedure TryConnect(ASender: TObject);
   var
@@ -2169,7 +2242,7 @@ var
   tc, td: Cardinal;
   AMillisecondsTimeout: Cardinal;
   R: Integer;
-  ABufLen: Integer; ATimeOut: Integer;
+  ABufLen: Integer; ATimeOut: Integer; iEAGAIN: Integer;
 begin
   Result := False; ErrorCode := 0;
   if FDebugMode then dbg('waitsocketfordata:');
@@ -2187,12 +2260,11 @@ begin
   end else AMillisecondsTimeout := 0;
 
   try
-
     ABufLen := 1;
     SetLength(ABuf, ABufLen+1);
     ABuf[1] := #0; ABuf[ABufLen+1] := #0;
 
-    R := 0; if R <> 0 then ;
+    R := 0; if R <> 0 then ; iEAGAIN := 0;
     tc := GetTickCount; //td := 0;
     //-while {(not fCancelled) and} {(R <= 0) and} ((td <= AMillisecondsTimeout) or (timeout_tv_sec < 0)) do
     while True do
@@ -2200,7 +2272,7 @@ begin
       if FDebugMode then dbg('libssh2_channel_read:');
       R := libssh2_channel_read(Channel, PAnsiChar(ABuf), ABufLen);
       if FDebugMode then dbg('libssh2_channel_read. R: '+IntToStr(R));
-      if R > 0 then begin
+      if R > 0 then begin // ">= ABufLen"
         Result := True;
         if R > ABufLen then R := ABufLen;
         SetLength(ABuf, R);
@@ -2219,7 +2291,7 @@ begin
         R := LIBSSH2_ERROR_TIMEOUT;
         Break;
       end;
-    end;
+    end; // while
 
     ABuf := '';
     //--if R = 0 then
@@ -2239,13 +2311,20 @@ begin
 end;
 
 constructor TSSH2Client.Create(AOwner: TComponent);
-var
-  R, flags: Integer;
+//(*
+//#TEST: test wrapper "HVDll.pas"
+{$if defined(_IDE_) and defined(_DEBUG_) and defined(_TEST_)}
+  procedure DBG_TEST_HVDll_PRELOAD_64();
+  begin
+    CheckLibSSH2Initialized();
+  end;
+  {$ifend}
+//#TEST. //*)
 begin
   inherited;
-  {$IFDEF DEUBUG}     //@dbg
-  FDebugMode := True; //@dbg
-  {$ENDIF}            //@dbg
+  {$if defined(DEBUG) or (defined(_IDE_) and  defined(_DEBUG_) and defined(_TEST_))}
+  FDebugMode := True;
+  {$ifend}
   //FHost := '';
   FPort := 22;
   //FUserName := '';
@@ -2263,18 +2342,15 @@ begin
   FSocket := INVALID_SOCKET;
   FCodePage := CP_UTF8;
   //FCompression := False;
-  if InterlockedIncrement(GSSH2Init) = 1 then
-  begin
-    flags := 0; // or LIBSSH2_INIT_NO_CRYPTO
-    if FDebugMode then dbg('libssh2_init:');
-    R := libssh2_init(flags);
-    if FDebugMode then dbg('libssh2_init. R:'+IntToStr(R));
-    if R <> 0 then
-      RaiseSSHError('Error initializing libssh2.');
-  end;
+
+  //#TEST: test wrapper "HVDll.pas"
+  {$if declared(DBG_TEST_HVDll_PRELOAD_64)}
+  DBG_TEST_HVDll_PRELOAD_64();
+  {$ifend}
+  //#TEST.
 end;
 
-function TSSH2Client.CreateSocket: Integer;
+function TSSH2Client.CreateSocket: TSocket;
 begin
   Result := INVALID_SOCKET;
   if WSDataStartup() <> 0 then
@@ -2295,14 +2371,28 @@ begin
 end;
 
 destructor TSSH2Client.Destroy;
+var ARefs: Integer;
 begin
   if FConnected then
+  try
     Disconnect;
-  if InterlockedDecrement(GSSH2Init) < 1 then
+  except
+    on e: Exception do ;
+  end;
+  if FLibSSH2Initialized then
   begin
-    if FDebugMode then dbg('libssh2_exit:');
-    libssh2_exit();
-    if FDebugMode then dbg('libssh2_exit.');
+    FLibSSH2Initialized := False;
+    ARefs := InterlockedDecrement(GSSH2Init);
+    if ARefs <= 0 then
+    begin
+      if FDebugMode then dbg('libssh2_exit:');
+      try
+        libssh2_exit();
+        if FDebugMode then dbg('libssh2_exit.');
+      except
+        on e: Exception do ;
+      end;
+    end;
   end;
   inherited;
 end;
@@ -2344,7 +2434,7 @@ begin
         ASocket := FSocket;
         FSocket := INVALID_SOCKET;
         if FDebugMode then dbg('closesocket:');
-        closesocket(ASocket);
+        LIBSSH2_SOCKET_CLOSE(ASocket);
         if FDebugMode then dbg('closesocket.');
       end;
     //--finally
@@ -2426,14 +2516,48 @@ begin
   Result := FSession;
 end;
 
-function TSSH2Client.GetSocketHandle: Integer;
+function TSSH2Client.GetSocketHandle: TSocket;
 begin
   Result := FSocket;
 end;
 
+{$if declared(Int64)} {$define _INT64_} {$else} {$undef _INT64_} {$ifend}
+function vertostr(V: {$ifdef _INT64_}Int64{$else}Double{$endif}): string;
+var S: string; y, md, hn: {$ifdef _INT64_}Int64{$else}Double{$endif};
+begin
+  //Result := inttostr(V);
+
+  // v: yyyymmddhhnn //@ 202401141600
+  // year from  v as yyyy
+  y := Trunc(V / 10000 / 10000); //@ 202401141600 / 10000 / 10000
+  Result := {$ifdef _INT64_}inttostr(y){$else}floattostr(y){$endif}; //@ 2024
+
+  //v: mmddhhnn
+  V := V - y*10000*10000; //@ 01141600
+  // md from v as mmdd
+  md := Trunc(V / 10000); //@ 01141600 / 10000
+  S := {$ifdef _INT64_}inttostr(md){$else}floattostr(md){$endif}; //@ 2024
+  if length(S)<4 then S:='0'+S; if length(S)<4 then S:='0'+S;
+  Result := Result + '.' + S;
+
+  //v: hhnn
+  V := V - md*10000; //@ 1600
+  // hn from v as hhnn
+  hn := V;
+  S := {$ifdef _INT64_}inttostr(hn){$else}floattostr(hn){$endif}; //@ 2024
+  if length(S)<4 then S:='0'+S; if length(S)<4 then S:='0'+S;
+  if length(S)<4 then S:='0'+S; if length(S)<4 then S:='0'+S;
+  Result := Result + '.' + S;
+end;
+
+class function TSSH2Client.GetClassVersion: string;
+begin
+  Result := vertostr(SFTPCLIENT_VERSION);
+end;
+
 function TSSH2Client.GetVersion: string;
 begin
-  Result := ClassName + ' v' + SFTPCLIENT_VERSION;
+  Result := ClassName + ' v' + TSSH2Client.GetClassVersion();
 end;
 
 function TSSH2Client.MyDecode(const S: AnsiString): UnicodeString;
@@ -2498,7 +2622,7 @@ begin
     if Assigned(FSession) then
     begin
       if FDebugMode then dbg('libssh2_*blocking*:');
-      if Value then v := {non-blocking:}1 else {blocking:}v := 0;
+      if Value then v := {blocking:}1 else {non-blocking:}v := 0;
       c := libssh2_session_get_blocking(FSession);
       if c <> v then
       begin
@@ -2521,7 +2645,7 @@ end;
 
 procedure TSSH2Client.SetKeepAlive(Value: Boolean);
 var
-  KeepAliveTimeOut, R, i: Integer;
+  KeepAliveTimeOut: UINT; R, i: Integer;
 begin
   if (FKeepAlive <> Value) or (Assigned(FSession) and not fConnected) then
   begin
@@ -2530,8 +2654,10 @@ begin
     if Assigned(FSession) then
     begin
       // send timeout
-      KeepAliveTimeOut := FTimeOut;
-      if (KeepAliveTimeOut > 0) and (KeepAliveTimeOut<10) then KeepAliveTimeOut := 10;
+      KeepAliveTimeOut := 0;
+      if (FTimeOut > 0) and (FTimeOut<10) then KeepAliveTimeOut := 10 else if (FTimeOut > 0) then KeepAliveTimeOut := FTimeOut;
+      //if KeepAliveTimeOut > 3*60 then
+      //  KeepAliveTimeOut := 3*60;
       if fDebugMode then dbg(strwhen('connect: ', fConnected)+'libssh2_keepalive_config: active: '+BoolToStr(FKeepAlive, True)+'; seconds: ' + IntToStr(KeepAliveTimeOut));
       libssh2_keepalive_config(FSession, bool2int(FKeepAlive), KeepAliveTimeOut); // FTimeOut - number of seconds
       // check/read keepalive timeout settings:
@@ -2542,18 +2668,20 @@ begin
         R := libssh2_keepalive_send(FSession, {seconds_to_next:}i);
       end;
       //if R < 0 then ;
-      if fDebugMode then dbg(strwhen('connect: ', fConnected)+'libssh2_keepalive_config. OK: '+BoolToStr(i = KeepAliveTimeOut, True));
+      if fDebugMode then dbg(strwhen('connect: ', fConnected)+'libssh2_keepalive_config. OK: '+BoolToStr(UINT(i) = KeepAliveTimeOut, True));
     end;
   end;
 end;
 
 procedure TSSH2Client.SetKeepAliveTimeOut(Value: Integer);
-var ATimeOut: Integer; //R, i: Integer;
+var ATimeOut: UINT; //R, i: Integer;
 begin
   if Value < 0 then Value := 0; if (Value > 0) and (Value<10) then Value := 10;
   if (FKeepAliveTimeOut <> Value) or (Assigned(FSession) and not fConnected) then
   begin
     FKeepAliveTimeOut := Value;
+    //if FKeepAliveTimeOut > 3*60 then
+    //  FKeepAliveTimeOut := 3*60;
     //
     if Assigned(FSession) then
     begin

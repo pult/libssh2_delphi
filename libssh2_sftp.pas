@@ -1,5 +1,5 @@
-{ libssh2_sftp.pas } // version: 2020.0919.0015
-{ **
+{ libssh2_sftp.pas } //# version: 2024.0114.1600
+{ **..
   *  Delphi/Pascal Wrapper around the library "libssh2"
   *    Base repository:
   *      https://bitbucket.org/ZeljkoMarjanovic/libssh2-delphi
@@ -10,15 +10,66 @@
   * }
 unit libssh2_sftp;
 
-// **zm ** translated to pascal
+//#
+//# **zm ** translated to pascal
+//#
 
+//# libssh2_sftp.h # https://github.com/libssh2/libssh2/blob/master/include/libssh2_sftp.h
+//#TODO:           # 2026.1122: https://github.com/libssh2/libssh2/commit/631e7734c8d850cd0c8e7a27d4dc524915e20b09
+
+(*
+ * Copyright (C) Sara Golemon <sarag@libssh2.org>
+ * Copyright (C) Daniel Stenberg
+ * Copyright (C) Simon Josefsson <simon@josefsson.org>
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms,
+ * with or without modification, are permitted provided
+ * that the following conditions are met:
+ *
+ *   Redistributions of source code must retain the above
+ *   copyright notice, this list of conditions and the
+ *   following disclaimer.
+ *
+ *   Redistributions in binary form must reproduce the above
+ *   copyright notice, this list of conditions and the following
+ *   disclaimer in the documentation and/or other materials
+ *   provided with the distribution.
+ *
+ *   Neither the name of the copyright holder nor the names
+ *   of any other contributors may be used to endorse or
+ *   promote products derived from this software without
+ *   specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+ * CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+ * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
+ * USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
+ * OF SUCH DAMAGE.
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *)
+(* Note: Version 6 was documented at the time of writing }
+ * However it was marked as "DO NOT IMPLEMENT" due to pending changes }
+ * }
+ * Let's start with Version 3 (The version found in OpenSSH) and go from there }
+ *)
 {$i libssh2.inc}
 
 interface
 
 uses
   {$IFDEF allow_hvdll}
-  HVDll, // alternative for: external ?dll_name name '?function_name' delayed;
+  HVDll, //# alternative for: external '%dll_name%' name '%function_name%' delayed;
   {$ENDIF}
   {$IFDEF MSWINDOWS}
     {$if defined(WIN32) or defined(WIN64)}
@@ -29,81 +80,39 @@ uses
   {$ENDIF}
   SysUtils, libssh2;
 
-{+// Copyright (c) 2004-2008, Sara Golemon <sarag@libssh2.org> }
-{-* All rights reserved. }
-{-* }
-{-* Redistribution and use in source and binary forms, }
-{-* with or without modification, are permitted provided }
-{-* that the following conditions are met: }
-{-* }
-{-* Redistributions of source code must retain the above }
-{-* copyright notice, this list of conditions and the }
-{-* following disclaimer. }
-{-* }
-{-* Redistributions in binary form must reproduce the above }
-{-* copyright notice, this list of conditions and the following }
-{-* disclaimer in the documentation and/or other materials }
-{-* provided with the distribution. }
-{-* }
-{-* Neither the name of the copyright holder nor the names }
-{-* of any other contributors may be used to endorse or }
-{-* promote products derived from this software without }
-{-* specific prior written permission. }
-{-* }
-{-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND }
-{-* CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, }
-{-* INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES }
-{-* OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE }
-{-* ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR }
-{-* CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, }
-{-* SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, }
-{-* BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR }
-{-* SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS }
-{-* INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, }
-{-* WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING }
-{-* NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE }
-{-* USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY }
-{-* OF SUCH DAMAGE. }
-{= }
-
-{+// Note: Version 6 was documented at the time of writing }
-{-* However it was marked as "DO NOT IMPLEMENT" due to pending changes }
-{-* }
-{-* Let's start with Version 3 (The version found in OpenSSH) and go from there }
-{= }
 const
   LIBSSH2_SFTP_VERSION = 3;
 
   LIBSSH2_SFTP_PACKET_MAXLEN = 40000;
 
 type
-  _LIBSSH2_SFTP = record end;
-  LIBSSH2_SFTP_HANDLE = record end;
+  _LIBSSH2_SFTP        = record end;
+  LIBSSH2_SFTP_HANDLE  = record end;
   _LIBSSH2_SFTP_HANDLE = LIBSSH2_SFTP_HANDLE;
-  PLIBSSH2_SFTP = ^_LIBSSH2_SFTP;
+  PLIBSSH2_SFTP        = ^_LIBSSH2_SFTP;
   PLIBSSH2_SFTP_HANDLE = ^LIBSSH2_SFTP_HANDLE;
 
 const
   LIBSSH2_SFTP_OPENFILE = 0;
   LIBSSH2_SFTP_OPENDIR_ = 1;
-{+// Flags for rename_ex()*/ }
+  {+// Flags for rename_ex()*/ }
   LIBSSH2_SFTP_RENAME_OVERWRITE = $00000001;
-  LIBSSH2_SFTP_RENAME_ATOMIC = $00000002;
-  LIBSSH2_SFTP_RENAME_NATIVE = $00000004;
-{+// Flags for stat_ex()*/ }
-  LIBSSH2_SFTP_STAT_ = 0;
-  LIBSSH2_SFTP_LSTAT_ = 1;
+  LIBSSH2_SFTP_RENAME_ATOMIC    = $00000002;
+  LIBSSH2_SFTP_RENAME_NATIVE    = $00000004;
+  {+// Flags for stat_ex()*/ }
+  LIBSSH2_SFTP_STAT_    = 0;
+  LIBSSH2_SFTP_LSTAT_   = 1;
   LIBSSH2_SFTP_SETSTAT_ = 2;
-{+// Flags for symlink_ex()*/ }
-  LIBSSH2_SFTP_SYMLINK_ = 0;
+  {+// Flags for symlink_ex()*/ }
+  LIBSSH2_SFTP_SYMLINK_  = 0;
   LIBSSH2_SFTP_READLINK_ = 1;
   LIBSSH2_SFTP_REALPATH_ = 2;
-{+// SFTP attribute flag bits*/ }
-  LIBSSH2_SFTP_ATTR_SIZE = $00000001;
-  LIBSSH2_SFTP_ATTR_UIDGID = $00000002;
+  {+// SFTP attribute flag bits*/ }
+  LIBSSH2_SFTP_ATTR_SIZE        = $00000001;
+  LIBSSH2_SFTP_ATTR_UIDGID      = $00000002;
   LIBSSH2_SFTP_ATTR_PERMISSIONS = $00000004;
-  LIBSSH2_SFTP_ATTR_ACMODTIME = $00000008;
-  LIBSSH2_SFTP_ATTR_EXTENDED = $80000000;
+  LIBSSH2_SFTP_ATTR_ACMODTIME   = $00000008;
+  LIBSSH2_SFTP_ATTR_EXTENDED    = $80000000;
 
 {+// If flags & ATTR_* bit is set, then the value in this struct will be }
 {-* meaningful Otherwise it should be ignored }
@@ -116,9 +125,8 @@ type
     permissions: Cardinal;
     atime, mtime: Cardinal;
   end;
-
-  LIBSSH2_SFTP_ATTRIBUTES  =  _LIBSSH2_SFTP_ATTRIBUTES;
-  PLIBSSH2_SFTP_ATTRIBUTES  =  ^_LIBSSH2_SFTP_ATTRIBUTES;
+  LIBSSH2_SFTP_ATTRIBUTES  = _LIBSSH2_SFTP_ATTRIBUTES;
+  PLIBSSH2_SFTP_ATTRIBUTES = ^_LIBSSH2_SFTP_ATTRIBUTES;
 
   _LIBSSH2_SFTP_STATVFS = record
     f_bsize,    {/* file system block size */}
@@ -131,22 +139,22 @@ type
     f_favail,   {/* # free inodes for non-root */}
     f_fsid,     {/* file system ID */}
     f_flag,     {/* mount flags */}
-    f_namemax: libssh2_uint64_t;  {/* maximum filename length */}
+    f_namemax: libssh2_uint64_t; {/* maximum filename length */}
   end;
   TLIBSSH2_SFTP_STATVFS = _LIBSSH2_SFTP_STATVFS;
   PLIBSSH2_SFTP_STATVFS = ^TLIBSSH2_SFTP_STATVFS;
 
 const
 {+// SFTP filetypes*/ }
-  LIBSSH2_SFTP_TYPE_REGULAR = 1;
-  LIBSSH2_SFTP_TYPE_DIRECTORY = 2;
-  LIBSSH2_SFTP_TYPE_SYMLINK = 3;
-  LIBSSH2_SFTP_TYPE_SPECIAL = 4;
-  LIBSSH2_SFTP_TYPE_UNKNOWN = 5;
-  LIBSSH2_SFTP_TYPE_SOCKET = 6;
-  LIBSSH2_SFTP_TYPE_CHAR_DEVICE = 7;
+  LIBSSH2_SFTP_TYPE_REGULAR      = 1;
+  LIBSSH2_SFTP_TYPE_DIRECTORY    = 2;
+  LIBSSH2_SFTP_TYPE_SYMLINK      = 3;
+  LIBSSH2_SFTP_TYPE_SPECIAL      = 4;
+  LIBSSH2_SFTP_TYPE_UNKNOWN      = 5;
+  LIBSSH2_SFTP_TYPE_SOCKET       = 6;
+  LIBSSH2_SFTP_TYPE_CHAR_DEVICE  = 7;
   LIBSSH2_SFTP_TYPE_BLOCK_DEVICE = 8;
-  LIBSSH2_SFTP_TYPE_FIFO = 9;
+  LIBSSH2_SFTP_TYPE_FIFO         = 9;
 
 {+// }
 {-* Reproduce the POSIX file modes here for systems that are not POSIX }
@@ -156,13 +164,13 @@ const
 {= }
 {+// File type*/ }
 
-  LIBSSH2_SFTP_S_IFMT = 61440; {/* type of file mask*/}
-  LIBSSH2_SFTP_S_IFIFO = 4096; {/* named pipe (fifo)*/}
-  LIBSSH2_SFTP_S_IFCHR = 8192; {/* character special*/}
-  LIBSSH2_SFTP_S_IFDIR = 16384; {/* directory*/}
-  LIBSSH2_SFTP_S_IFBLK = 24576; {/* block special*/}
-  LIBSSH2_SFTP_S_IFREG = 32768; {/* regular*/}
-  LIBSSH2_SFTP_S_IFLNK = 40960; {/* symbolic link*/}
+  LIBSSH2_SFTP_S_IFMT   = 61440; {/* type of file mask*/}
+  LIBSSH2_SFTP_S_IFIFO  = 4096; {/* named pipe (fifo)*/}
+  LIBSSH2_SFTP_S_IFCHR  = 8192; {/* character special*/}
+  LIBSSH2_SFTP_S_IFDIR  = 16384; {/* directory*/}
+  LIBSSH2_SFTP_S_IFBLK  = 24576; {/* block special*/}
+  LIBSSH2_SFTP_S_IFREG  = 32768; {/* regular*/}
+  LIBSSH2_SFTP_S_IFLNK  = 40960; {/* symbolic link*/}
   LIBSSH2_SFTP_S_IFSOCK = 49152; {/* socket*/}
 
 {+// File mode*/ }
@@ -189,15 +197,15 @@ const
 
 {+// SFTP File Transfer Flags -- (e.g. flags parameter to sftp_open()) }
 {=* Danger will robinson... APPEND doesn't have any effect on OpenSSH servers }
-  LIBSSH2_FXF_READ = $00000001;
-  LIBSSH2_FXF_WRITE = $00000002;
+  LIBSSH2_FXF_READ   = $00000001;
+  LIBSSH2_FXF_WRITE  = $00000002;
   LIBSSH2_FXF_APPEND = $00000004;
-  LIBSSH2_FXF_CREAT = $00000008;
-  LIBSSH2_FXF_TRUNC = $00000010;
-  LIBSSH2_FXF_EXCL = $00000020;
+  LIBSSH2_FXF_CREAT  = $00000008;
+  LIBSSH2_FXF_TRUNC  = $00000010;
+  LIBSSH2_FXF_EXCL   = $00000020;
 
 {+// SFTP Status Codes (returned by libssh2_sftp_last_error() )*/ }
-  LIBSSH2_FX_OK = 0;
+  LIBSSH2_FX_OK  = 0;
   LIBSSH2_FX_EOF = 1;
   LIBSSH2_FX_NO_SUCH_FILE = 2;
   LIBSSH2_FX_PERMISSION_DENIED = 3;
@@ -265,10 +273,10 @@ var libssh2_sftp_open_ex: function(sftp: PLIBSSH2_SFTP;
 function libssh2_sftp_open(sftp: PLIBSSH2_SFTP;
                            const filename: PAnsiChar;
                            flags: ULong;
-                           mode: LongInt): PLIBSSH2_SFTP_HANDLE; inline;
+                           mode: LongInt): PLIBSSH2_SFTP_HANDLE; {$ifdef allow_inline}inline;{$endif}
 
 function libssh2_sftp_opendir(sftp: PLIBSSH2_SFTP;
-                              const path: PAnsiChar): PLIBSSH2_SFTP_HANDLE; inline;
+                              const path: PAnsiChar): PLIBSSH2_SFTP_HANDLE; {$ifdef allow_inline}inline;{$endif}
 
 {$if not declared(uHVDll)}
 function libssh2_sftp_read(handle: PLIBSSH2_SFTP_HANDLE;
@@ -298,7 +306,7 @@ var libssh2_sftp_readdir_ex: function(handle: PLIBSSH2_SFTP_HANDLE;
 
 function libssh2_sftp_readdir(handle: PLIBSSH2_SFTP_HANDLE;
                               buffer: PAnsiChar;
-                              buffer_maxlen: SIZE_T;  attrs: PLIBSSH2_SFTP_ATTRIBUTES): Integer; inline;
+                              buffer_maxlen: SIZE_T;  attrs: PLIBSSH2_SFTP_ATTRIBUTES): Integer; {$ifdef allow_inline}inline;{$endif}
 
 {$if not declared(uHVDll)}
 function libssh2_sftp_write(handle: PLIBSSH2_SFTP_HANDLE;
@@ -316,9 +324,9 @@ function libssh2_sftp_close_handle(handle: PLIBSSH2_SFTP_HANDLE): Integer; cdecl
 var libssh2_sftp_close_handle: function(handle: PLIBSSH2_SFTP_HANDLE): Integer; cdecl;
 {$ifend}
 
-function libssh2_sftp_close(handle: PLIBSSH2_SFTP_HANDLE): Integer; inline;
+function libssh2_sftp_close(handle: PLIBSSH2_SFTP_HANDLE): Integer; {$ifdef allow_inline}inline;{$endif}
 
-function libssh2_sftp_closedir(handle: PLIBSSH2_SFTP_HANDLE): Integer; inline;
+function libssh2_sftp_closedir(handle: PLIBSSH2_SFTP_HANDLE): Integer; {$ifdef allow_inline}inline;{$endif}
 
 {$if not declared(uHVDll)}
 procedure libssh2_sftp_seek(handle: PLIBSSH2_SFTP_HANDLE;
@@ -336,7 +344,7 @@ var libssh2_sftp_seek64: procedure(handle: PLIBSSH2_SFTP_HANDLE;
                              offset: LIBSSH2_UINT64_T); cdecl;
 {$ifend}
 
-procedure libssh2_sftp_rewind(handle: PLIBSSH2_SFTP_HANDLE); inline;
+procedure libssh2_sftp_rewind(handle: PLIBSSH2_SFTP_HANDLE); {$ifdef allow_inline}inline;{$endif}
 
 {$if not declared(uHVDll)}
 function libssh2_sftp_tell(handle: PLIBSSH2_SFTP_HANDLE): UInt; cdecl;
@@ -361,10 +369,10 @@ var libssh2_sftp_fstat_ex: function(handle: PLIBSSH2_SFTP_HANDLE;
 {$ifend}
 
 function libssh2_sftp_fstat(handle: PLIBSSH2_SFTP_HANDLE;
-                            var attrs: LIBSSH2_SFTP_ATTRIBUTES): Integer; inline;
+                            var attrs: LIBSSH2_SFTP_ATTRIBUTES): Integer; {$ifdef allow_inline}inline;{$endif}
 
 function libssh2_sftp_fsetstat(handle: PLIBSSH2_SFTP_HANDLE;
-                               var attrs: LIBSSH2_SFTP_ATTRIBUTES): Integer; inline;
+                               var attrs: LIBSSH2_SFTP_ATTRIBUTES): Integer; {$ifdef allow_inline}inline;{$endif}
 
 {+// Miscellaneous Ops*/ }
 
@@ -386,7 +394,7 @@ var libssh2_sftp_rename_ex: function(sftp: PLIBSSH2_SFTP;
 
 function libssh2_sftp_rename(sftp: PLIBSSH2_SFTP;
                              const source_filename: PAnsiChar;
-                             const dest_filename: PAnsiChar): Integer; inline;
+                             const dest_filename: PAnsiChar): Integer; {$ifdef allow_inline}inline;{$endif}
 
 {$if not declared(uHVDll)}
 function libssh2_sftp_unlink_ex(sftp: PLIBSSH2_SFTP;
@@ -399,7 +407,7 @@ var libssh2_sftp_unlink_ex: function(sftp: PLIBSSH2_SFTP;
 {$ifend}
 
 function libssh2_sftp_unlink(sftp: PLIBSSH2_SFTP;
-                             const filename: PAnsiChar): Integer; inline;
+                             const filename: PAnsiChar): Integer; {$ifdef allow_inline}inline;{$endif}
 
 {$if not declared(uHVDll)}
 function libssh2_sftp_fstatvfs(handle: PLIBSSH2_SFTP_HANDLE;
@@ -435,7 +443,7 @@ var libssh2_sftp_mkdir_ex: function(sftp: PLIBSSH2_SFTP;
 
 function libssh2_sftp_mkdir(sftp: PLIBSSH2_SFTP;
                             const path: PAnsiChar;
-                            mode: LongInt): Integer; inline;
+                            mode: LongInt): Integer; {$ifdef allow_inline}inline;{$endif}
 
 {$if not declared(uHVDll)}
 function libssh2_sftp_rmdir_ex(sftp: PLIBSSH2_SFTP;
@@ -448,7 +456,7 @@ var libssh2_sftp_rmdir_ex: function(sftp: PLIBSSH2_SFTP;
 {$ifend}
 
 function libssh2_sftp_rmdir(sftp: PLIBSSH2_SFTP;
-                            const path: PAnsiChar): Integer; inline;
+                            const path: PAnsiChar): Integer; {$ifdef allow_inline}inline;{$endif}
 
 {$if not declared(uHVDll)}
 function libssh2_sftp_stat_ex(sftp: PLIBSSH2_SFTP;
@@ -466,15 +474,15 @@ var libssh2_sftp_stat_ex: function(sftp: PLIBSSH2_SFTP;
 
 function libssh2_sftp_stat(sftp: PLIBSSH2_SFTP;
                            const path: PAnsiChar;
-                           var attrs: LIBSSH2_SFTP_ATTRIBUTES): Integer; inline;
+                           var attrs: LIBSSH2_SFTP_ATTRIBUTES): Integer; {$ifdef allow_inline}inline;{$endif}
 
 function libssh2_sftp_lstat(sftp: PLIBSSH2_SFTP;
                             const path: PAnsiChar;
-                            var attrs: LIBSSH2_SFTP_ATTRIBUTES): Integer; inline;
+                            var attrs: LIBSSH2_SFTP_ATTRIBUTES): Integer; {$ifdef allow_inline}inline;{$endif}
 
 function libssh2_sftp_setstat(sftp: PLIBSSH2_SFTP;
                               const path: PAnsiChar;
-                              var attrs: LIBSSH2_SFTP_ATTRIBUTES): Integer; inline;
+                              var attrs: LIBSSH2_SFTP_ATTRIBUTES): Integer; {$ifdef allow_inline}inline;{$endif}
 
 {$if not declared(uHVDll)}
 function libssh2_sftp_symlink_ex(sftp: PLIBSSH2_SFTP;
@@ -494,17 +502,17 @@ var libssh2_sftp_symlink_ex: function(sftp: PLIBSSH2_SFTP;
 
 function libssh2_sftp_symlink(sftp: PLIBSSH2_SFTP;
                               const orig: PAnsiChar;
-                              linkpath: PAnsiChar): Integer; inline;
+                              linkpath: PAnsiChar): Integer; {$ifdef allow_inline}inline;{$endif}
 
 function  libssh2_sftp_readlink(sftp: PLIBSSH2_SFTP;
                                 const path: PAnsiChar;
                                 target: PAnsiChar;
-                                maxlen: UInt): Integer; inline;
+                                maxlen: UInt): Integer; {$ifdef allow_inline}inline;{$endif}
 
 function  libssh2_sftp_realpath(sftp: PLIBSSH2_SFTP;
                                 const path: PAnsiChar;
                                 target: PAnsiChar;
-                                maxlen: UInt): Integer; inline;
+                                maxlen: UInt): Integer; {$ifdef allow_inline}inline;{$endif}
 
 implementation
 
@@ -537,8 +545,8 @@ function libssh2_sftp_stat_ex; external libssh2_name{$ifdef allow_delayed} delay
 function libssh2_sftp_symlink_ex; external libssh2_name{$ifdef allow_delayed} delayed{$endif};
 {$else}
 var
-  dll_libssh2 : TDll;
-  dll_libssh2_entires : array[0..20] of HVDll.TEntry = (
+  dll_libssh2_sftp : TDll;
+  dll_libssh2_sftp_entires : array[0..20] of HVDll.TEntry = (
     (Proc: @@libssh2_sftp_init;    Name: 'libssh2_sftp_init'),
     (Proc: @@libssh2_sftp_shutdown;    Name: 'libssh2_sftp_shutdown'),
     (Proc: @@libssh2_sftp_last_error;    Name: 'libssh2_sftp_last_error'),
@@ -593,12 +601,12 @@ begin
   libssh2_sftp_seek64(handle, 0);
 end;
 
-function libssh2_sftp_fstat(handle: PLIBSSH2_SFTP_HANDLE; var attrs: LIBSSH2_SFTP_ATTRIBUTES): Integer; inline;
+function libssh2_sftp_fstat(handle: PLIBSSH2_SFTP_HANDLE; var attrs: LIBSSH2_SFTP_ATTRIBUTES): Integer; {$ifdef allow_inline}inline;{$endif}
 begin
   Result := libssh2_sftp_fstat_ex(handle, attrs, 0);
 end;
 
-function libssh2_sftp_fsetstat(handle: PLIBSSH2_SFTP_HANDLE; var attrs: LIBSSH2_SFTP_ATTRIBUTES): Integer; inline;
+function libssh2_sftp_fsetstat(handle: PLIBSSH2_SFTP_HANDLE; var attrs: LIBSSH2_SFTP_ATTRIBUTES): Integer; {$ifdef allow_inline}inline;{$endif}
 begin
   Result := libssh2_sftp_fstat_ex(handle, attrs, 1);
 end;
@@ -658,11 +666,11 @@ end;
 
 initialization
   {$if declared(uHVDll)}
-  dll_libssh2 := TDll.Create(libssh2_name, dll_libssh2_entires);
-  //dll_libssh2.Load(); // @dbg
+  dll_libssh2_sftp := TDll.Create(libssh2_name, dll_libssh2_sftp_entires);
+  //dll_libssh2_sftp.Load(); // @dbg
   {$ifend}
 finalization
   {$if declared(uHVDll)}
-  dll_libssh2.Unload;
+  dll_libssh2_sftp.Unload;
   {$ifend}
 end.

@@ -37,4 +37,9 @@ const
     {$WEAKLINKRTTI ON}
     {$RTTI EXPLICIT METHODS([]) PROPERTIES([]) FIELDS([])}
   {$ENDIF}
+
+  {$IF CompilerVersion >= 35.00} // D28 Up (RAD DX11.x Alexandria)
+    {$SETPEOSVERSION 5.0}      // optional
+    {$SETPESUBSYSVERSION 5.0}  // optional
+  {$IFEND}
 {$ENDIF}

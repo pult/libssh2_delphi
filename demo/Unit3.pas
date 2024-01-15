@@ -30,6 +30,7 @@ type
     btnDisconnect: TButton;
     edUser: TLabeledEdit;
     edPass: TLabeledEdit;
+    edPath: TLabeledEdit;
     cbKeepAlive: TCheckBox;
     btnDelete: TButton;
     btnRename: TButton;
@@ -43,7 +44,9 @@ type
     btnSelPkey: TButton;
     btnSelPrivkey: TButton;
     btnSetPerms: TButton;
+
     procedure FormCreate(Sender: TObject);
+
     procedure btnConnectClick(Sender: TObject);
     procedure ListView1DblClick(Sender: TObject);
     procedure btnDisconnectClick(Sender: TObject);
@@ -120,10 +123,10 @@ begin
   SFTP.PrivateKeyPath := edPrivkey.Text;
   SFTP.PrivKeyPassPhrase := edPrivkpass.Text;
   try
-    SFTP.Connect;
+    SFTP.Connect(edPath.Text);
     if not SFTP.Connected then
       Exit;
-    StatusBar1.Panels[0].Text := SFTP.GetSessionMethodsStr;
+    StatusBar1.Panels[0].Text := #32 + SFTP.GetSessionMethodsStr;
     SFTP.List;
     FillList;
     btnConnect.Enabled := False;
@@ -248,7 +251,9 @@ begin
   if ListView1.SelCount = 1 then
     if ListView1.Selected.Caption <> '..' then
     begin
-      if MessageDlg('Are you sure?', mtWarning, mbYesNo, 0) = mrNo then
+      //-if MessageDlg('Are you sure?', mtWarning, mbYesNo, 0) = mrNo then
+      //-  Exit;
+      if Application.MessageBox('Are you sure?', '', MB_OKCANCEL + MB_ICONQUESTION + MB_DEFBUTTON2 + MB_TOPMOST) <> MB_OK then
         Exit;
       I := ListView1.Selected.Index;
       if ListView1.Items[0].Caption = '..' then
@@ -282,7 +287,7 @@ begin
       NewName := SFTP.DirectoryItems[I].FileName;
       if InputQuery('Rename', 'Enter new name', NewName) then
         try
-          SFTP.Rename(SFTP.DirectoryItems[I].FileName, SFTP.CurrentDirectory + '/' + NewName);
+          SFTP.Rename(SFTP.CurrentDirectory + '/' + SFTP.DirectoryItems[I].FileName, SFTP.CurrentDirectory + '/' + NewName);
           SFTP.List;
           FillList;
         except
@@ -444,7 +449,7 @@ begin
   //
   {$IFDEF CPUX64}
   Caption := Caption + ' (x64)';
-  {$ENDIF}
+  {$ENDIF CPUX64}
   //
   SFTP := TSFTPClient.Create(Self);
   SFTP.DebugMode := True; // ouput debug info over Windows.OutputDebugString
@@ -452,7 +457,7 @@ begin
   SFTP.OnAuthFailed := OnAuthFailed;
   SFTP.OnCantChangeStartDir := OnCantChangeStartDir;
   SFTP.OnKeybdInteractive := OnKeybdInteractive;
-  StatusBar1.Panels[1].Text := 'libssh2 ver: ' + SFTP.LibraryVersion;
+  StatusBar1.Panels[1].Text := #32 + 'libssh2 ver: ' + SFTP.LibraryVersion + '; ' + SFTP.Version;
 end;
 
 procedure TForm3.ListView1DblClick(Sender: TObject);
@@ -511,12 +516,16 @@ end;
 
 procedure TForm3.OnAuthFailed(ASender: TObject; var Continue: Boolean);
 begin
-  Continue := MessageDlg('Auth failed. Try again?', mtConfirmation, mbYesNo, 0) = mrYes;
+//-Continue := MessageDlg('Auth failed. Try again?', mtConfirmation, mbYesNo, 0) = mrYes;
+  Continue :=  Application.MessageBox('Auth failed. Try again?', '',
+    MB_OKCANCEL + MB_ICONQUESTION + MB_DEFBUTTON2 + MB_TOPMOST) = MB_OK;
 end;
 
 procedure TForm3.OnCantChangeStartDir(ASender: TObject; var Continue: Boolean);
 begin
-  Continue := MessageDlg('Could not change to start dir. Continue?', mtConfirmation, mbYesNo, 0) = mrYes;
+//-Continue := MessageDlg('Could not change to start dir. Continue?', mtConfirmation, mbYesNo, 0) = mrYes;
+  Continue :=  Application.MessageBox('Could not change to start dir. Continue', '',
+    MB_OKCANCEL + MB_ICONQUESTION + MB_DEFBUTTON2 + MB_TOPMOST) = MB_OK;
 end;
 
 procedure TForm3.OnKeybdInteractive(ASender: TObject; var Password: String);

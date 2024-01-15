@@ -235,6 +235,24 @@ object Form3: TForm3
     ParentFont = False
     PasswordChar = #8226
     TabOrder = 11
+    Text = ''
+  end
+  object edPath: TLabeledEdit
+    Left = 223
+    Top = 100
+    Width = 137
+    Height = 21
+    EditLabel.Width = 26
+    EditLabel.Height = 13
+    EditLabel.Caption = 'Path:'
+    Font.Charset = DEFAULT_CHARSET
+    Font.Color = clWindowText
+    Font.Height = -11
+    Font.Name = 'Tahoma'
+    Font.Style = [fsBold]
+    ParentFont = False
+    TabOrder = 12
+    Text = ''
   end
   object cbKeepAlive: TCheckBox
     Left = 119
@@ -244,7 +262,7 @@ object Form3: TForm3
     Caption = 'Keepalive'
     Checked = True
     State = cbChecked
-    TabOrder = 12
+    TabOrder = 13
   end
   object btnDelete: TButton
     Left = 170
@@ -254,7 +272,7 @@ object Form3: TForm3
     Anchors = [akLeft, akBottom]
     Caption = 'Delete'
     Enabled = False
-    TabOrder = 13
+    TabOrder = 14
     OnClick = btnDeleteClick
   end
   object btnRename: TButton
@@ -265,7 +283,7 @@ object Form3: TForm3
     Anchors = [akLeft, akBottom]
     Caption = 'Rename'
     Enabled = False
-    TabOrder = 14
+    TabOrder = 15
     OnClick = btnRenameClick
   end
   object btnMkSymlink: TButton
@@ -276,7 +294,7 @@ object Form3: TForm3
     Anchors = [akLeft, akBottom]
     Caption = 'Make symlink'
     Enabled = False
-    TabOrder = 15
+    TabOrder = 16
     OnClick = btnMkSymlinkClick
   end
   object btnResSymlink: TButton
@@ -287,7 +305,7 @@ object Form3: TForm3
     Anchors = [akLeft, akBottom]
     Caption = 'Resolve symlink'
     Enabled = False
-    TabOrder = 16
+    TabOrder = 17
     OnClick = btnResSymlinkClick
   end
   object btnMkDir: TButton
@@ -298,7 +316,7 @@ object Form3: TForm3
     Anchors = [akLeft, akBottom]
     Caption = 'Make directory'
     Enabled = False
-    TabOrder = 17
+    TabOrder = 18
     OnClick = btnMkDirClick
   end
   object StatusBar1: TStatusBar
@@ -308,11 +326,13 @@ object Form3: TForm3
     Height = 19
     Panels = <
       item
-        Width = 600
+        Width = 250
       end
       item
-        Width = 80
+        Width = 250
       end>
+    ParentShowHint = False
+    ShowHint = True
   end
   object edPkey: TLabeledEdit
     Left = 366
