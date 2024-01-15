@@ -1,13 +1,13 @@
-{ HVHeaps.pas } // version: 2020.0615.1000
+{ HVHeaps.pas } //# version: 2024.0114.1600
 unit HVHeaps;
-//
-// https://github.com/pult/dll_load_delay
-// https://bitbucket.org/VadimLV/dll_load_delay
-// http://hallvards.blogspot.com/2008/03/tdm8-delayloading-of-dlls.html
-//
-// Simple wrapper classes around the Win32 Heap functions.
-// Written by Hallvard Vassbotn (hallvard@falcon.no), January 1999
-//
+//#...
+//# https://github.com/pult/dll_load_delay
+//# https://bitbucket.org/VadimLV/dll_load_delay
+//# http://hallvards.blogspot.com/2008/03/tdm8-delayloading-of-dlls.html
+//#
+//# Simple wrapper classes around the Win32 Heap functions.
+//# Written by Hallvard Vassbotn (hallvard@falcon.no), January 1999
+//#
 interface
 
 {$IFDEF WIN32}
@@ -19,14 +19,17 @@ interface
 
 {$IFDEF MSWINDOWS}
 
-{$IFDEF FPC}
-  {.$WARNINGS OFF}
-  {.$HINTS OFF}
+{$undef allow_inline} { no change }
+{$define allow_inline} { optional }
+
+{$IFDEF  FPC}
+  {-WARNINGS OFF}
+  {-HINTS OFF}
 
   {$MODE OBJFPC}
-  //{$MODE DELPHI}
+  {-MODE DELPHI}
   {$H+}
-  {-DEFINE UNICODE}    { optional }
+  {-DEFINE UNICODE} { optional }
 
   {$B-,R-}
   {$Q-}
@@ -34,20 +37,27 @@ interface
 
   {$ASSERTIONS OFF}
 
-  {$ALIGN 8} // For packed record
+  {$ALIGN 8} //# For packed record
   {$MINENUMSIZE 1}
-{$ELSE !FPC}
+{$ELSE  !FPC}
   {$IFDEF UNICODE}
-    {$ALIGN 8} // For packed record
+    {$ALIGN 8} //# For packed record
     {$MINENUMSIZE 1}
 
-    //{$IF CompilerVersion >= 25.00}{XE4Up}
-    //  {$ZEROBASEDSTRINGS OFF}
-    //{$IFEND}
   {$ENDIF}
-  {.$WARN UNSAFE_CODE OFF}
-  {.$WARN UNSAFE_TYPE OFF}
-  {.$WARN UNSAFE_CAST OFF}
+  {-WARN UNSAFE_CODE OFF}
+  {-WARN UNSAFE_TYPE OFF}
+  {-WARN UNSAFE_CAST OFF}
+
+  {$IFDEF CONDITIONALEXPRESSIONS}
+    {$IF CompilerVersion >= 25.00} //# XE4_UP
+      {$undef allow_inline} { no change }
+    {$ELSE}
+    {$IFEND}
+  {$ELSE}
+    {$undef allow_inline} { no change }
+  {$ENDIF}
+
 {$ENDIF !FPC}
 
 uses
@@ -58,34 +68,41 @@ uses
   ;
 
 type
-  // The TPrivateHeap class gives basic memory allocation capability
-  // The benefit of using this class instead of the native GetMem
-  // and FreeMem routines, is that the memory pages used will
-  // be seperate from other allocations. This gives reduced
-  // fragmentation.
-  TPrivateHeap = class//(TObject)
+  //# The TPrivateHeap class gives basic memory allocation capability
+  //# The benefit of using this class instead of the native GetMem
+  //# and FreeMem routines, is that the memory pages used will
+  //# be seperate from other allocations. This gives reduced
+  //# fragmentation.
+  TPrivateHeap = class
   private
     FHandle: THandle;
     FAllocationFlags: DWORD;
     function GetHandle: THandle;
   public
     destructor Destroy; override;
+
     function GetMem(var P{: Pointer}; Size: DWORD): Boolean; virtual;
-    function FreeMem(P: Pointer): Boolean;
-    function SizeOfMem(P: Pointer): DWORD;
+    function FreeMem(P: Pointer): Boolean; {$ifdef allow_inline}inline;{$endif}
+    function SizeOfMem(P: Pointer): DWORD; {$ifdef allow_inline}inline;{$endif}
+    class function IsMemWritable(P: Pointer; Size: DWORD): Boolean;
+    class function IsPtrWritable(P: Pointer): Boolean; {$ifdef allow_inline}inline;{$endif}
+    class function SetMemFlags(P: Pointer; Size: DWORD; MemProtectFlags: DWORD): Boolean;
+    class function SetMemWritable(P: Pointer; Size: DWORD): Boolean;
+
     property Handle: THandle read GetHandle;
     property AllocationFlags: DWORD read FAllocationFlags write FAllocationFlags;
   end;
 
-  // The Code Heap adds the feature of allocating readable/writable
-  // and executable memory blocks. This allows us to have safe
-  // run-time generated code while not wasting as much memory
-  // as calls to VirtualAlloc would have caused, while avoiding
-  // the pitfalls of changing the protection flags of blocks
-  // allocated with GetMem.
+  //# The Code Heap adds the feature of allocating readable/writable
+  //# and executable memory blocks. This allows us to have safe
+  //# run-time generated code while not wasting as much memory
+  //# as calls to VirtualAlloc would have caused, while avoiding
+  //# the pitfalls of changing the protection flags of blocks
+  //# allocated with GetMem.
   TCodeHeap = class(TPrivateHeap)
   public
     function GetMem(var P{: Pointer}; Size: DWORD): Boolean; override;
+    class function SetMemWritable(P: Pointer; Size: DWORD): Boolean;
   end;
 
 {$ENDIF MSWINDOWS}
@@ -120,27 +137,96 @@ end;
 
 function TPrivateHeap.GetMem(var P{: Pointer}; Size: DWORD): Boolean;
 begin
-  Pointer(P) := Windows.HeapAlloc(Handle, FAllocationFlags, Size);
-  Result := Pointer(P) <> nil;
+  if Pointer(@P) <> nil then
+  begin
+    Pointer(P) := Windows.HeapAlloc(Handle, FAllocationFlags, Size);
+    Result := Pointer(P) <> nil;
+  end
+  else
+    Result := False;
 end;
 
 function TPrivateHeap.SizeOfMem(P: Pointer): DWORD;
 begin
   Result := Windows.HeapSize(Handle, 0, P);
-  // HeapSize does not set GetLastError, but returns $FFFFFFFF if it fails
+  //# HeapSize does not set GetLastError, but returns $FFFFFFFF if it fails
   if Result = $FFFFFFFF then
     Result := 0;
+end;
+
+class function TPrivateHeap.IsMemWritable(P: Pointer; Size: DWORD): Boolean;
+const
+  PAGE_WRITABLE = PAGE_EXECUTE_WRITECOPY or PAGE_EXECUTE_READWRITE or
+                  PAGE_READWRITE or PAGE_WRITECOPY;
+var
+  mbi: TMemoryBasicInformation;
+  OK: Boolean;
+begin
+  Result := False;
+  if P = nil then
+    Exit;
+  OK := VirtualQuery(P, mbi, SizeOf(mbi)) <> 0;
+  if OK then begin
+    OK := (mbi.Protect = PAGE_NOACCESS) or ((mbi.Protect and PAGE_WRITABLE)= 0);
+    if OK then
+      exit;
+    if P <> mbi.BaseAddress then
+      Inc(Size, NativeUInt(P) - NativeUInt(mbi.BaseAddress) );
+    if (Size <= mbi.RegionSize) then begin
+      Result := True;
+      exit;
+    end;
+    while True do begin //# search bad write block
+      OK := (mbi.Protect = PAGE_NOACCESS) or ((mbi.Protect and PAGE_WRITABLE)= 0);
+      if OK or (Size<= mbi.RegionSize) then
+        break;
+      Dec(Size, mbi.RegionSize);
+      //# Seek Ptr to next region:
+      P := Pointer(NativeUInt(mbi.BaseAddress) + mbi.RegionSize + 1);
+      OK := VirtualQuery(P, mbi, SizeOf(mbi)) = 0;
+      if OK then begin
+        Result := True;
+        break;
+      end;
+    end;
+  end;
+end;
+
+class function TPrivateHeap.IsPtrWritable(P: Pointer): Boolean;
+begin
+  Result := Assigned(P) and IsMemWritable(P, SizeOf(Pointer));
+end;
+
+class function TPrivateHeap.SetMemFlags(P: Pointer; Size: DWORD; MemProtectFlags: DWORD): Boolean;
+var
+  Dummy: DWORD;
+begin
+  Result := Assigned(P);
+  if Result then
+    Result := Windows.VirtualProtect(P, Size, MemProtectFlags, @Dummy);
+end;
+
+class function TPrivateHeap.SetMemWritable(P: Pointer; Size: DWORD): Boolean;
+begin
+  Result := Assigned(P);
+  if Result then
+    Result := SetMemFlags(P, Size, PAGE_READWRITE);
 end;
 
 { TCodeHeap }
 
 function TCodeHeap.GetMem(var P{: Pointer}; Size: DWORD): Boolean;
-var
-  Dummy: DWORD;
 begin
   Result := inherited GetMem(P, Size);
   if Result then
-    Result := Windows.VirtualProtect(Pointer(P), Size, PAGE_EXECUTE_READWRITE, @Dummy);
+    Result := SetMemFlags(Pointer(P), Size, PAGE_EXECUTE_READWRITE);
+end;
+
+class function TCodeHeap.SetMemWritable(P: Pointer; Size: DWORD): Boolean;
+begin
+  Result := Assigned(P);
+  if Result then
+    Result := SetMemFlags(P, Size, PAGE_EXECUTE_READWRITE);
 end;
 
 initialization
