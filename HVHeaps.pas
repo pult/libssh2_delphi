@@ -1,6 +1,6 @@
-{ HVHeaps.pas } //# version: 2024.0114.1600
+{ HVHeaps.pas } //# version: 2024.0117.0600
 unit HVHeaps;
-//#...
+//#....
 //# https://github.com/pult/dll_load_delay
 //# https://bitbucket.org/VadimLV/dll_load_delay
 //# http://hallvards.blogspot.com/2008/03/tdm8-delayloading-of-dlls.html
@@ -164,32 +164,34 @@ var
 begin
   Result := False;
   if P = nil then
-    Exit;
-  OK := VirtualQuery(P, mbi, SizeOf(mbi)) <> 0;
-  if OK then begin
+    exit;
+  OK := VirtualQuery(P, mbi, SizeOf(mbi)) = 0;
+  if OK then
+    exit;
+  OK := (mbi.Protect = PAGE_NOACCESS) or ((mbi.Protect and PAGE_WRITABLE)= 0);
+  if OK then
+    exit;
+  if P <> mbi.BaseAddress then
+    Inc(Size, NativeUInt(P) - NativeUInt(mbi.BaseAddress) );
+  Result := (Size <= mbi.RegionSize);
+  if Result then
+    exit;
+  while True do //# search bad write block
+  begin
     OK := (mbi.Protect = PAGE_NOACCESS) or ((mbi.Protect and PAGE_WRITABLE)= 0);
     if OK then
       exit;
-    if P <> mbi.BaseAddress then
-      Inc(Size, NativeUInt(P) - NativeUInt(mbi.BaseAddress) );
-    if (Size <= mbi.RegionSize) then begin
-      Result := True;
+    OK := (Size <= mbi.RegionSize);
+    if OK then
+      break;
+    Dec(Size, mbi.RegionSize);
+    //# Seek Ptr to next region:
+    P := Pointer(NativeUInt(mbi.BaseAddress) + mbi.RegionSize + 1);
+    OK := VirtualQuery(P, mbi, SizeOf(mbi)) = 0;
+    if OK then
       exit;
-    end;
-    while True do begin //# search bad write block
-      OK := (mbi.Protect = PAGE_NOACCESS) or ((mbi.Protect and PAGE_WRITABLE)= 0);
-      if OK or (Size<= mbi.RegionSize) then
-        break;
-      Dec(Size, mbi.RegionSize);
-      //# Seek Ptr to next region:
-      P := Pointer(NativeUInt(mbi.BaseAddress) + mbi.RegionSize + 1);
-      OK := VirtualQuery(P, mbi, SizeOf(mbi)) = 0;
-      if OK then begin
-        Result := True;
-        break;
-      end;
-    end;
   end;
+  Result := True;
 end;
 
 class function TPrivateHeap.IsPtrWritable(P: Pointer): Boolean;
