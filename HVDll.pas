@@ -1,4 +1,4 @@
-{ HVDll.pas } //# version: 2024.0114.1600
+{ HVDll.pas } //# version: 2024.0117.2130
 unit HVDll;
 //#
 //# Support for DelayLoading of DLLs la "VC++ 6.0"
@@ -10,32 +10,136 @@ unit HVDll;
 interface
 
 {$UNDEF SUPPORTED}
-{$IFDEF WIN32}
-  {$DEFINE MSWINDOWS}
-  {$DEFINE SUPPORTED} //#TODO: Check FPC.
-{$ENDIF}
-{$IFDEF WIN64}
-  {$DEFINE MSWINDOWS}
-  //#
-  //#TEST:
-  //#
-  {$if defined(_IDE_) and defined(_DEBUG_) and defined(_TEST_)}
-    {-DEFINE SUPPORTED} //#TODO: WIN64: Check Delphi and FPC
-  {$ifend}
-  //#
-  //#TEST.
-  //#
-{$ENDIF}
+{$IFDEF  FPC} //#TODO: Check FPC
+  {$IFDEF  WIN32}
+    {$DEFINE MSWINDOWS}
+  {$ENDIF}
+  {$IFDEF  WIN64}
+    {$DEFINE MSWINDOWS}
+  {$ENDIF}
+  //
+  {$IFDEF  MSWINDOWS}
+    {$IFDEF CPUX86}
+      {$DEFINE SUPPORTED}
+    {$ENDIF}
+    {$IFDEF CPUX64}
+      {$DEFINE SUPPORTED}
+    {$ENDIF}
+  {$ELSE  !MSWINDOWS}
+  {$ENDIF !MSWINDOWS}
 
-//{$ifdef CPU64}
-//  {-DEFINE CPUX64}
-//{$else}
-//  {-DEFINE CPUX86}
-//{$endif}
+  {$IFDEF  WIN32}
+    {$DEFINE MSWINDOWS}
+    {$DEFINE SUPPORTED}
+  {$ELSE  !WIN32}
+    {$IFDEF CPUX86}
+      {-DEFINE SUPPORTED}
+    {$ENDIF}
+  {$ENDIF !WIN32}
 
-{$IFDEF SUPPORTED}
+{$ELSE  !FPS}
+  // 32 Bits
+  {$IFNDEF  CONDITIONALEXPRESSIONS}
+    {$DEFINE CPU32}
+    {$DEFINE CPU386}
+    {$DEFINE CPUX86}
+    {$IFNDEF LINUX}
+      {$DEFINE WIN32}
+      {$DEFINE MSWINDOWS}
+      {$DEFINE SUPPORTED} //# old delphi compilers
+    {$ELSE}
+      {-DEFINE SUPPORTED} //#TODO: Check Kylix
+    {$ENDIF}
+  {$ELSE  !CONDITIONALEXPRESSIONS}
+    {$IFDEF  CPUX86}
+      {$DEFINE CPU32}
+      {$DEFINE CPU386}
+    {$ENDIF}
+    {$IFDEF  CPU386}
+      {$DEFINE CPU32}
+      {$DEFINE CPUX86}
+    {$ENDIF}
+    {$IFDEF  CPU32BITS}
+      {$DEFINE CPU32}
+    {$ENDIF}
+    //
+    {$IFDEF  WIN32}
+      {$DEFINE CPU32}
+      {$DEFINE CPU32BITS}
+      {$DEFINE MSWINDOWS}
+      {$IFDEF CPUX86}
+        {$DEFINE SUPPORTED}
+      {$ELSE}
+        {-DEFINE SUPPORTED} //# ?
+      {$ENDIF}
+    {$ELSE  !WIN32}
+      {$IFDEF CPU32}
+        {$IFDEF CPUX86}
+          //{$IFDEF LINUX}
+          //  {-DEFINE SUPPORTED} //#TODO: Check x86 Linux
+          //{$ENDIF}
+          //{$IFDEF MACOS}
+          //  {-DEFINE SUPPORTED} //#TODO: Check x86 MACOS
+          //{$ENDIF}
+        {$ENDIF}
+      {$ENDIF}
+    {$ENDIF !WIN32}
+
+    // 64 Bits
+    {$IFDEF  CPUX64}
+      {$DEFINE CPU64}
+    {$ENDIF}
+    {$IFDEF  CPU64BITS}
+      {$DEFINE CPU64}
+    {$ENDIF}
+    //
+    {$IFDEF  WIN64}
+      {$IFDEF CPUX64}
+        {$DEFINE SUPPORTED}
+      {$ENDIF}
+    {$ELSE  !WIN64}
+      {$IFDEF CPU64}
+        {$IFDEF CPUX64}
+          {$IFDEF LINUX}
+            {-DEFINE SUPPORTED} //#TODO: Check x64 Linux
+          {$ENDIF}
+          {$IFDEF MACOS}
+            {-DEFINE SUPPORTED} //#TODO: Check x64 MACOS
+          {$ENDIF}
+        {$ENDIF}
+      {$ENDIF}
+    {$ENDIF !WIN64}
+  {$ENDIF !CONDITIONALEXPRESSIONS}
+{$ENDIF !FPC}
+
+{$UNDEF _DCC_MSG_} {no change} //# when dcc unsupported directives: $MESSAGE $WARN
+{$IFNDEF FPC}
+  {$IFDEF UNICODE}
+    {$DEFINE _DCC_MSG_}   // optional
+  {$ELSE}
+    {$IFDEF VER185}       //# -D11/D2007
+      {$DEFINE _DCC_MSG_} // optional
+    {$ENDIF}
+    {$IFDEF VER180}       //# -D12/2009
+      {$DEFINE _DCC_MSG_} // optional
+    {$ENDIF}
+  {$ENDIF}
+{$ENDIF}
 
 {$UNDEF _TEST_} //@dbg
+//#
+//#TEST:
+//#
+{$IFDEF CPUX64}
+  {$if defined(_IDE_) and defined(_DEBUG_) and defined(_TEST_)}
+    {-DEFINE SUPPORTED} //#TODO: Check FPC: WIN32, WIN64
+  {$ifend}
+{$ENDIF}
+//#
+//#TEST.
+//#
+
+{$IFDEF SUPPORTED}
 
 {$UNDEF _MINI_}
 {$DEFINE _MINI_} { optional }
@@ -67,27 +171,30 @@ interface
 
   {$ASSERTIONS OFF}
 
-  {$IFDEF UNICODE}
+  {$IFDEF  UNICODE}
     {$ALIGN 8} //# For packed record
     {$MINENUMSIZE 1}
 
     {$WARN UNSAFE_CAST OFF} // W1048 Unsafe typecast of '*' to '*'
 
     {$IFDEF CONDITIONALEXPRESSIONS}
-      {$IF CompilerVersion >= 25.00}{XE4Up}
+      {$IF CompilerVersion >= 25.00} // XE4_UP
         {$ZEROBASEDSTRINGS OFF}
-        {$undef allow_inline} { no change }
         {$IF CompilerVersion >= 33.00}
           {$WARN EXPLICIT_STRING_CAST OFF}       // W1059 Explicit string cast from 'AnsiString' to 'string'
           {$WARN IMPLICIT_INTEGER_CAST_LOSS OFF} // W1071 Implicit integer cast with potential data loss from '*' to '*'
         {$IFEND}
       {$ELSE}
       {$IFEND}
-    {$ELSE}
+
+      {-undef allow_inline} // optional
+    {$ELSE  !CONDITIONALEXPRESSIONS}
       {$undef allow_inline} { no change }
-    {$ENDIF}
+    {$ENDIF !CONDITIONALEXPRESSIONS}
 
   {$ELSE  !UNICODE}
+    {$ALIGN 8} //# For packed record
+    {$undef allow_inline} { no change }
   {$ENDIF !UNICODE}
 {$ENDIF !FPC}
 
@@ -111,13 +218,13 @@ uses
   HVHeaps;
 
 const
-  HVDLL_VERSION = 202401141600;
-  //# format    : yyyymmddhhnn #
+  HVDLL_VERSION = 202401172130;
+  //# format    : yyyymmddhhnn #.
   {$EXTERNALSYM HVDLL_VERSION}
   uHVDll = HVDLL_VERSION // {$if defined(FPC) or (CompilerVersion >= 18.50)} deprecated{$ifend}
-    // {$if defined(FPC) or (CompilerVersion >= 24.00)}
-    // 'Symbol uHVDll is considered deprecated. Use HVDLL_VERSION'
-    // {$ifend}
+    //-{$if defined(FPC) or (CompilerVersion >= 24.00)}
+    //-'Symbol uHVDll is considered deprecated. Use HVDLL_VERSION'
+    //-{$ifend}
   ;
   {$EXTERNALSYM uHVDll}
   (*
@@ -125,7 +232,7 @@ const
   //# <sample>
   //#
   {$ifndef fpc}{$warn comparison_true off}{$endif}
-  {$if (not declared(HVDLL_VERSION)) or (HVDLL_VERSION < 2024011401600)}
+  {$if (not declared(HVDLL_VERSION)) or (HVDLL_VERSION < 202401172130)}
     {$ifndef fpc}{$warn message_directive on}{$endif}
       {$MESSAGE WARN 'Please use latest "HVDll.pas" from "https://github.com/pult/dll_load_delay"'}
       // or :
@@ -164,26 +271,33 @@ type
   TThunk = packed record
     CALL  : Byte;
     OFFSET: Integer;
-  end;
+  end{ align 8};
   PThunk = ^TThunk;
   TThunks = packed array[0..High(Word)-1] of TThunk;
   PThunks = ^TThunks;
 
   //# Structure to generate the per-DLL thunks
   TThunkHeader = packed record
+    {$IFDEF CPUX86}
     PUSH   : Byte;
     VALUE  : Pointer;
     JMP    : Byte;
     OFFSET : Integer;
-  end;
+    {$ENDIF}
+    {$IFDEF CPUX64}
+    OPCODES: packed array[0..10] of Byte; //# push rax; mov rax Self
+    JMP    : Byte;
+    OFFSET : Integer;
+    {$ENDIF}
+  end{ align 8};
   PThunkHeader=^TThunkHeader;
 
   //# The combined per-DLL and per-routine thunks
-  PThunkingCode = ^TThunkingCode;
   TThunkingCode = packed record
     ThunkHeader : TThunkHeader;
     Thunks      : TThunks;
   end{ align 8};
+  PThunkingCode = ^TThunkingCode;
 
   //# The base class that provides DelayLoad capability
   TDll = class
@@ -367,253 +481,195 @@ begin
 end;
 {$warnings on}
 
-//{$IFNDEF FPC}
-//  {$D-}
-//{$ENDIF FPC}
-//
-(*=  //# @dbg: PUREPASCAL
-procedure ThunkingTarget;
-var ADll: TDll; AThunk: PThunk;
-  {$IFDEF  WIN64}
-  procedure asm__save_regs; assembler; asm .NOFRAME;
+const TTHUNK_SIZE = SizeOf(TThunk);
+(*= EXPERIMENTES: //# @dbg: PUREPASCAL
+{$IFDEF CPUX64}
+procedure ThunkingTarget(); //#dbg: tobject(RAX).classname
+  var ADll: TDll; AThunk: PThunk; _RCX{, _ADDR}: Pointer;
+  function get_self(): TDll; assembler;
+  asm   .NOFRAME
   end;
-  procedure asm__restore_regs; assembler; asm .NOFRAME;
+  function get_rcx(): TDll; assembler;
+  asm   .NOFRAME
+        mov rax, rcx
   end;
-  {$ENDIF !WIN64}
-begin //# X64: ++ tobject(pnativeint(RSP+8*0)^).classname  #  ++ PThunk(pnativeint(RSP+8*1)^)^,r  # (CALL:232; OFFSET:-24) # RBP-RSP = 24
-      //#      ++ tobject(pnativeint(RBP-8*3)^).classname  #  ++ PThunk(pnativeint(RBP-8*2)^)^,r # (CALL:232; OFFSET:-24) # RBP-RSP = 24
-  {$IFDEF  WIN64} //-//# X64: ++ tobject(pnativeint(RBP+8*5)^).classname  #  -- PThunk(pnativeint(RBP+8*6))^
-      //#      ++ tobject(pnativeint(8*7+RBP)^).classname  #  ++ PThunk(pnativeint(8*8+RBP)^)^,r # (CALL:232; OFFSET:-24) # RBP-RSP = 24
-      //#      40: nativeint(pointer(@ADll))-nativeint(RBP)#  32: nativeint(pointer(@AThunk))-nativeint(RBP)
-      //#      nativeint(pointer(@ADll))-40=nativeint(RBP) # nativeint(pointer(@AThunk))-32=nativeint(RBP)
-
-      //asm__save_regs();
-
-      ADll   := TDll  (  pnativeint(  8*7 + nativeint(  (nativeint(pointer(@ADll  ))-40)  )  )^  )
-      ;
+  procedure set_rcx(_RDX: Pointer); assembler;
+  asm   .NOFRAME
+        mov rcx, rdx
+  end;
+  procedure pop_rax(); assembler;
+  asm   .NOFRAME
+        mov rsp,rbp
+        pop rbp
+        POP RAX
+        ret
+  end;
+  procedure path_ret_addr; assembler; // RCX = RBP
+  asm   .NOFRAME
+//      MOV  [RBP+$30+{vars:}8*3-16+32], RAX //# Result:Pointer  #  rax = nativeint(@test_libssh2_init)
+        MOV  [RCX+88], RAX //# Result:Pointer  #  rax = nativeint(@test_libssh2_init)
+  end;
+  procedure do_ret(); assembler;
+  asm   .NOFRAME
+        //# Return
+        lea rsp,[rbp+$30+3*8]
+        pop rbp
+        ADD RSP,  8 //# Remove the Self Pointer!
+        //# "Return" to the DLL!  #  ppointer(RSP)^  =  @test_libssh2_init
+  end;
+begin
+      ADll := get_self();
+      _RCX := get_rcx();
+//      ADll   := TDll  (  pnativeint(  8*7 + nativeint(  (nativeint(pointer(@ADll  ))-40)  )  )^  )
+//      ;
       //-AThunk := PThunk(  pnativeint(  8*8 + nativeint(  (nativeint(pointer(@AThunk))-32)  )  )^  )
       //-Dec(AThunk);
       //# or:
       AThunk := PThunk(  pnativeint(  8*8 + nativeint(  (nativeint(pointer(@AThunk))-32)  )  )^-SizeOf(TThunk)  )
       ;
-      {
-      // MOV     [RSP+32], RAX //# @dbg: Thunk: PThunk(ppointer(RSP+32)^)^ , r  #  Addr: rax = nativeint(@test_libssh2_init)
-      //asm__restore_regs();
-      MOV     [RSP+32], RAX
-      // Remove the Self Pointer!
-      ADD     RSP,  8
-      //# @dbg: Thunk: ppointer(RSP)^  =  @test_libssh2_init
-      }
-  //#-- X64: tobject(pnativeint(RSP+8*0)^).classname
-  //#-- X64: tobject(pnativeint(RBP+08)^).classname  #  nativeint(pointer(@ADll))-nativeint(RBP+08)
-//  asm__sub_rbp40; //# tobject(ppointer(nativeint(@ADll)-8)^).classname
-  {$ELSE  !WIN64}
+      {_ADDR :=} ADll.DelayLoadFromThunk(AThunk); //# _ADDR == pointer(RAX) = @test_libssh2_init
+
+      //# ? Now patch the return address on the stack so that we "return" to the DLL routine
+      path_ret_addr();
+
+      set_rcx(_RCX);
+      pop_rax();
+
+      //# ? Remove the Self Pointer!
+      //?...
+      //# ? return
+      //?...
+      do_ret();
+{$ENDIF CPUX64}
+{$IFDEF CPUX86}
+procedure ThunkingTarget(ADll: TDll; AThunk: PThunk);
+begin
   //# X86: tobject(pinteger(EBP+04)^).classname  #  integer(pointer(@ADll))-integer(ESP+04)
   asm add ebp, -4 end;
-  {$ENDIF !WIN64}
+  //?
   ADll.DelayLoadFromThunk(AThunk); // nativeint(@ADll) - 1374992
-  //...
+{$ENDIF CPUX86}
 end; //=*){=
 (*=} //# ASM CODE:
-procedure ThunkingTarget; assembler;
 //{$ENDIF}
-const TThunkSize = SizeOf(TThunk);
-{$IFDEF WIN64} //# *** *** *** WIN 32 *** *** ***
-//#TODO: WIN64 : failed code !!!
-const SZREGS = 8*(0+(3+4)); //# protect override saved rax and added for saved regs
+//# EXPERIMENTES.
+{$IFDEF CPUX64} //# *** *** *** CPU X64 *** *** ***
+//# RAX == Self == tobject(rax).classname
+const SZ_REGS = 8*({vars:}0+{save-regs:}(3+4));
 {$IFDEF FPC}
-  nostackframe;
+procedure ThunkingTarget; assembler; nostackframe;
 asm
 {$ELSE}
-asm
-  .NOFRAME
+procedure ThunkingTarget; assembler;
+asm .NOFRAME
 {$ENDIF}
-//(* //# VER #003: partial work
-  push rbp
-  sub rsp,$30+SZREGS
-  mov rbp,rsp
+    push rbp
+    sub  rsp, $30+SZ_REGS //# added local vars
+    mov  rbp, rsp
 
-//  PUSH    RAX  //#TODO: Failed restored RCX...
-//  PUSH    RDX
-//  PUSH    RCX
-  mov [rbp+$28+8*0],rax   //# Try restored RCX
-  mov [rbp+$28+8*1],rdx
-  mov [rbp+$28+8*2],rcx
-  //
-//  mov [rbp+$28+8*3],r8
-//  mov [rbp+$28+8*4],r9
-//  mov [rbp+$28+8*5],r10
-//  mov [rbp+$28+8*6],r11
-
-  //# ADll   := TDll  (  pnativeint(  8*7 + nativeint(  (nativeint(pointer(@ADll  ))-40)  )  )^  )
-  mov rax,[rbp+$38+SZREGS]
-  mov [rbp+$28+SZREGS],rax
-  //# AThunk := PThunk(  pnativeint(  8*8 + nativeint(  (nativeint(pointer(@AThunk))-32)  )  )^-SizeOf(TThunk)  )
-  mov rax,[rbp+$40+SZREGS]
-  lea rax,[rax-$05]
-  mov [rbp+$20+SZREGS],rax
-  //# ADll.DelayLoadFromThunk(AThunk); // nativeint(@ADll) - 1374992
-  mov rcx,[rbp+$28+SZREGS]
-  mov rdx,[rbp+$20+SZREGS]
-//ADD RSP, -8*10
-  call TDll.DelayLoadFromThunk
-//ADD RSP, +8*10
-  MOV     [RBP+$30+SZREGS-16+32], RAX //# @dbg: Thunk: PThunk(ppointer(RSP+32)^)^ , r  #  Addr: rax = nativeint(@test_libssh2_init)
-
-//  POP     RCX
-//  POP     RDX
-//  POP     RAX
-
-//  mov r11,[rbp+$28+8*6]
-//  mov r10,[rbp+$28+8*5]
-//  mov r9,[rbp+$28+8*4]
-//  mov r8,[rbp+$28+8*3]
-  //
-  mov rcx, [rbp+$28+8*2]
-  mov rdx, [rbp+$28+8*1]
-  mov rax, [rbp+$28+8*0]
-
-  //# ret
-  lea rsp,[rbp+$30+SZREGS]
-  pop rbp
-
-  //# Remove the Self Pointer!
-  ADD     RSP,  8
-
-//#TODO: ACCESS_VIOLATION # Failed call "ws2_32.dll" getaddrinfo by "uMySFTPClient.pas":
-//#                                          function TSSH2Client.ConnectSocket
-//#                                              getaddrinfo(PAnsiChar(
-
-  ret
-//*)
-
-(* //# VER #002: failed rasrore regs RCX...
-  push rbp
-  sub rsp,$30
-  mov rbp,rsp
-
-  PUSH    RAX
-  PUSH    RDX
-  PUSH    RCX
-
-  //# ADll   := TDll  (  pnativeint(  8*7 + nativeint(  (nativeint(pointer(@ADll  ))-40)  )  )^  )
-  mov rax,[rbp+$38]
-  mov [rbp+$28],rax
-  //# AThunk := PThunk(  pnativeint(  8*8 + nativeint(  (nativeint(pointer(@AThunk))-32)  )  )^-SizeOf(TThunk)  )
-  mov rax,[rbp+$40]
-  lea rax,[rax-$05]
-  mov [rbp+$20],rax
-  //# ADll.DelayLoadFromThunk(AThunk); // nativeint(@ADll) - 1374992
-  mov rcx,[rbp+$28]
-  mov rdx,[rbp+$20]
-  call TDll.DelayLoadFromThunk
-  MOV     [RBP+$30-16+32], RAX //# @dbg: Thunk: PThunk(ppointer(RSP+32)^)^ , r  #  Addr: rax = nativeint(@test_libssh2_init)
-
-  POP     RCX
-  POP     RDX
-  POP     RAX
-
-  //# ret
-  lea rsp,[rbp+$30]
-  pop rbp
-
-  //# Remove the Self Pointer!
-  ADD     RSP,  8
-
-  ret
-//*)
-
-//# VER #001: failed rasrore regs RCX...
-//PUSH    RAX
-//PUSH    RDX
-//PUSH    RCX
-
-//# @dbg: Self:   TObject(ppointer(RSP+0)^).ClassName
-//# @dbg: Thunk:  PThunk(ppointer(RSP+8)^)^ ,r
-//# @dbg: Index:  ((nativeint(ppointer(RSP+8)^)-TThunkSize) - nativeint(@(TDll(ppointer(RSP+0)^).FThunkingCode^.Thunks[0]))) div TThunkSize
-
-  PUSH    RAX
-  PUSH    RDX
-  PUSH    RCX
 { Stack layout at this point:
   48 [Stack based parameters]  //# pnativeint(RSP+48)^
-  40 [User code RetAdr]        //# pnativeint(RSP+40)^
-  32 [Thunk Ret-Adr]           //# pnativeint(RSP+32)^
-  24 [Self]                    //# pnativeint(RSP+24)^
+  40 [User code RetAdr]        //# pnativeint(RSP+40)^  #  ppointer(RSP+8*5)^
+  32 [Thunk Ret-Adr]           //# pnativeint(RSP+32)^  #  ppointer(RSP+8*4)^
+  24 [Self]                    //# pnativeint(RSP+24)^  #  ppointer(RSP+8*4)^
   16 [RAX]                     //# pnativeint(RSP+16)^
    8 [RDX]                     //# pnativeint(RSP+08)^
    0 [RCX] <-RSP}              //# pnativeint(RSP+00)^
 
-//# @dbg: Self:   TObject(ppointer(ESP+24)^).ClassName
-//# @dbg: Thunk:  PThunk(ppointer(ESP+32)^)^ ,r
-//# @dbg: Index:  ((nativeint(ppointer(RSP+32)^)-TThunkSize) - nativeint(@(TDll(RAX).FThunkingCode^.Thunks[0]))) div TThunkSize
+    //# save regs
+//- mov  [rbp+$28+8*0], rax  //#  RAX = Self  #  tobject(rax).classname
+    mov  [rbp+$28+8*1], rdx
+    mov  [rbp+$28+8*2], rcx
+    //
+    mov  [rbp+$28+8*3], R8
+    mov  [rbp+$28+8*4], R9
+    mov  [rbp+$28+8*5], R10
+    mov  [rbp+$28+8*6], R11
 
-  // Get the caller's return address (i.e. one of the thunks)
-  MOV     RCX, [RSP+24] //# Self: TObject(ppointer(ESP+24)^).ClassName
-//MOV RCX, RAX //?!!
-  MOV     RDX, [RSP+32] //# Thunk
-  SUB     RDX, TThunkSize //# TYPE TThunk
-//# @dbg: Self:   TObject(RAX).ClassName = 'TDll'
-//? @dbg: Self:   TObject(RCX).ClassName = 'TDll'
-//# @dbg: Thunk:  PThunk(RDX)^ ,r
-//# @dbg: Index: (RDX - nativeint(@(TDll(RAX).FThunkingCode^.Thunks[0]))) div TThunkSize
+    //# Self:TDll  #  tobject(rax).classname
+//- mov  rax, [rbp+$38+SZ_REGS] //# Self:TDll
+    mov  [rbp+$28+SZ_REGS], rax //# Self:TDll
+    //# PThunk(  pnativeint(  8*8 + nativeint(  (nativeint(pointer(@AThunk))-32)  )  )^-SizeOf(TThunk)  )^
+    //# PThunk(pnativeint(rbp+8*8+SZ_REGS)^-SizeOf(TThunk))^
+    mov  rax, [rbp+8*8+SZ_REGS] //# PThunk
+    lea  rax, [rax-TTHUNK_SIZE] //# The return address is just after the thunk that called us, so go back one step
+    mov  [rbp+$20+SZ_REGS], rax //# PThunk(rax)^
+    //# CALL TDll.DelayLoadFromThunk (RCX:Sell:TDll, RDX:PThunk)
+    mov  rcx, [rbp+$28+SZ_REGS] //# Self:TDll # Get the caller's return address (i.e. one of the thunks)
+    mov  rdx, [rbp+$20+SZ_REGS] //# TThunk
+    //# Do the rest in Pascal
+    CALL TDll.DelayLoadFromThunk      //# Changed: RCX,RDX,R8,R9,R10,R11
+    //# Now patch the return address on the stack so that we "return" to the DLL routine
+    MOV  [RBP+$30+SZ_REGS-16+32], RAX //# Result:Pointer  #  rax = nativeint(@test_libssh2_init)
 
-//ADD RSP, -$40 // $40 == 64 == 8*8 //# DelayLoadFromThunk incremented RSP
-  CALL    TDll.DelayLoadFromThunk //# (Self, Thunk)  #  changed: rcx rdx r8 r9 r10 r11
-//ADD RSP, +$40 // 8*8
+    //# restore regs
+    mov  R11, [rbp+$28+8*6]
+    mov  R10, [rbp+$28+8*5]
+    mov  R9,  [rbp+$28+8*4]
+    mov  R8,  [rbp+$28+8*3]
+    //
+    mov  rcx, [rbp+$28+8*2]
+    mov  rdx, [rbp+$28+8*1]
+//- mov  rax, [rbp+$28+8*0]
+    //
+    pop  rax
 
-  MOV     [RSP+32], RAX //# @dbg: Thunk: PThunk(ppointer(RSP+32)^)^ , r  #  Addr: rax = nativeint(@test_libssh2_init)
-
-  POP     RCX
-  POP     RDX
-  POP     RAX
-//# @dbg: Thunk: nativeint(ppointer(RSP+8)^)  =  nativeint(@test_libssh2_init)
-//POP     RCX
-//POP     RDX
-//POP     RAX
-
-  // Remove the Self Pointer!
-  ADD     RSP,  8
-//# @dbg: Thunk: ppointer(RSP)^  =  @test_libssh2_init
-  // "Return" to the DLL!
-{$ENDIF WIN64}
-{$IFDEF WIN32} //# *** *** *** WIN 32 *** *** ***
+    //# Return
+    lea rsp,[rbp+$30+SZ_REGS]
+    pop rbp
+    ADD     RSP,  8 //# Remove the Self Pointer!
+  //# "Return" to the DLL!  #  ppointer(RSP)^ = @test_libssh2_init
+  //{$IFDEF DEBUG}ret{$ENDIF}
+end;
+{$ENDIF CPUX64}
+{$IFDEF CPUX86} //# *** *** *** CPU X86 *** *** ***
+procedure ThunkingTarget; assembler;
 asm
-  // Save register-based parameters
+  //# Save register-based parameters
   PUSH    EAX
   PUSH    EDX
   PUSH    ECX
 { Stack layout at this point:
   24 [Stack based parameters]  //# pinteger(ESP+24)^
-  20 [User code RetAdr]        //# pinteger(ESP+20)^
-  16 [Thunk Ret-Adr]           //# pinteger(ESP+16)^
-  12 [Self]                    //# pinteger(ESP+12)^
+  20 [User code RetAdr]        //# ppointer(ESP+20)^    ppointer(ESP+4*5)^
+  16 [Thunk Ret-Adr]           //# ppointer(ESP+16)^    ppointer(ESP+4*4)^
+  12 [Self]                    //# ppointer(ESP+12)^
    8 [EAX]                     //# pinteger(ESP+08)^
    4 [EDX]                     //# pinteger(ESP+04)^
    0 [ECX] <-ESP}              //# pinteger(ESP+00)^
-  // Get the caller's return address (i.e. one of the thunks)
+  //# Get the caller's return address (i.e. one of the thunks)
   MOV     EAX, [ESP+12]   // Self
   MOV     EDX, [ESP+16]   // Thunk
-  // The return address is just after the thunk that
-  // called us, so go back one step
-  SUB     EDX, TYPE TThunk // Using SizeOf(TThunk) here does not work. BASM not supported it(old bug)!
-  // Do the rest in Pascal
+  //# The return address is just after the thunk that called us, so go back one step
+  SUB     EDX, TYPE TThunk // Using SizeOf(TThunk) here does not work. BASM not supported it(old bug)!  #  TTHUNK_SIZE
+  //# Do the rest in Pascal
+  CALL    TDll.DelayLoadFromThunk //#(EAX:Self:TDll, EDX:Thunk) #@dbg:  tobject(EAX).classname  #  PThunk(EAX)^
 
-//-ADD ESP,-$20
-  CALL    TDll.DelayLoadFromThunk{(Self, Thunk);} //@dbg: PThunk(EDX)^ ; TObject(EAX).ClassName = 'TDll'
-//-ADD ESP,+$20
-
-  // Now patch the return address on the stack so that we "return" to the DLL routine
-  MOV     [ESP+16], EAX
+  //# Now patch the return address on the stack so that we "return" to the DLL routine
+  MOV     [ESP+16], EAX        //# pointer(EAX)
   // Restore register-based parameters
   POP     ECX
   POP     EDX
   POP     EAX
-  // Remove the Self Pointer!
+  //# Remove the Self Pointer!
   ADD     ESP,  4
-  // "Return" to the DLL!
-{$ENDIF WIN32}
-end; //*)
+  //# "Return" to the DLL!
+  //{$IFDEF DEBUG}ret{$ENDIF}
+end;
+{$ENDIF CPUX86}
+//*)
+{$if declared(ThunkingTarget)}
+  {$IFDEF _DCC_MSG_}
+    {$MESSAGE '# Note: NHVDll is supported!!"'}
+  {$ENDIF}
+{$else}
+  {$IFDEF _DCC_MSG_}
+    {$MESSAGE FATAL 'ERROR: NHVDll: ThunkingTarget : platform not supported'}
+  {$ELSE}
+    ERROR = 'NHVDll: ThunkingTarget : platform not supported!'
+  {$ENDIF}
+{$ifend}
+
 //
 //{$IFNDEF FPC}
 //  {$IFNDEF _OPT_DEBUG_OFF_}
@@ -650,10 +706,7 @@ begin
     SetLength(FEntries, FCount);
     L := @FEntries[0];
     R := @Entries[0];
-    for i := High(Entries) downto 0 do begin
-      //FEntries[i].EProc := Entries[i].Proc;
-      //FEntries[i].EID := Entries[i].ID;
-      //FEntries[i].EName := Entries[i].Name;
+    for i := High(Entries) downto 0 do begin //# FEntries[i]: EProc := Entries[i].Proc; EID := Entries[i].ID; EName := Entries[i].Name;
       L^.EProc := R^.Proc;
       L^.EID := R^.ID;
       L^.EName := R^.Name;
@@ -681,13 +734,16 @@ begin
   inherited Destroy;
 end;
 
-procedure TDll.CreateThunks; //TODO: WIN64
+procedure TDll.CreateThunks;
 const
   CallInstruction = $E8;
   PushInstruction = $68;
   JumpInstruction = $E9;
 var
   i: Integer; Size: DWORD; H: PThunkHeader; T, T1: PThunk;
+  {$IFDEF CPUX64}
+  C: PByte;
+  {$ENDIF}
 begin
   if Count = 0 then
     Exit;
@@ -696,22 +752,36 @@ begin
   Dlls.CodeHeap.GetMem(FThunkingCode, Size);
 
   //# Generate some machine code in the thunks
-  //-with FThunkingCode^{, ThunkHeader} do
   begin
     //# The per-Dll thunk does this:
     //# PUSH    Self
     //# JMP     ThunkingTarget
     H := @FThunkingCode^.ThunkHeader;
+
+    {$IFDEF CPUX86}
+    //FillChar(FThunkingCode^, Size, #0);
     H^.PUSH   := PushInstruction;
     H^.VALUE  := Self;
-    H^.JMP    := JumpInstruction;
+    {$ENDIF}
+    {$IFDEF CPUX64}
+    with H^ do begin
+      C := @OPCODES[0];
+      //FillChar(C^, Length(OPCODES), $90); //# nop
+      //# push rax
+      C^ := $50; inc(C);
+      //# mov rax, Self
+      C^ := $48; inc(C); C^ := $B8; inc(C);
+      PPointer(C)^ := Self; //inc(C, SizeOf(Pointer));
+    end;
+    {$ENDIF}
 
+    //# jmp FThunkingCode
+    H^.JMP    := JumpInstruction;
     T := @FThunkingCode^.Thunks[0];
     H^.OFFSET := PAnsiChar(@ThunkingTarget) - PAnsiChar(T);
 
-    T1 := T; Inc(T1); //T1 := @FThunkingCode^.Thunks[1];
-    for i := 0 to Count-1 do begin
-      //T := @FThunkingCode^.Thunks[i]; T1 := @FThunkingCode^.Thunks[i+1];
+    T1 := T; Inc(T1);
+    for i := 0 to Count-1 do begin //#  T == @FThunkingCode^.Thunks[i]  #  T1 == @FThunkingCode^.Thunks[i+1]
       //# The per-entry thunk does this:
       //# CALL @ThunkingCode^.ThunkHeader
       T^.CALL   := CallInstruction;
@@ -722,7 +792,8 @@ begin
   end;
 end;
 
-procedure TDll.DestroyThunks; var P: Pointer;
+procedure TDll.DestroyThunks;
+var P: Pointer;
 begin
   if Assigned(FThunkingCode) then begin
     P := FThunkingCode; FThunkingCode := nil;
@@ -739,6 +810,12 @@ var _test_libssh2_init: t_libssh2_init;
 function test_libssh2_init(flags: Integer): Integer; cdecl;
 begin
   Result := _test_libssh2_init(flags);
+end;
+type t_libssh2_exit = procedure; cdecl;
+var _test_libssh2_exit: t_libssh2_exit;
+procedure test_libssh2_exit; cdecl;
+begin
+  _test_libssh2_exit();
 end;
 //}
 {$ifend}
@@ -759,7 +836,11 @@ begin //@dbg: Thunk^ ,r
   if Assigned(Result) then begin
     if (FEntries[i].EName = 'libssh2_init') then begin
       @_test_libssh2_init := Result;
-      Result := @test_libssh2_init;
+      Result := @test_libssh2_init; //#TODO: For TEST only: Failed thunk clear memory access for 'libssh2_init'
+      FEntries[i].EProc := Result;
+    end else if (FEntries[i].EName = 'libssh2_exit') then begin
+      @_test_libssh2_exit := Result;
+      Result := @test_libssh2_exit;
       FEntries[i].EProc := Result;
     end;
   end;
@@ -776,7 +857,11 @@ begin
 end;
 
 class procedure TDll.DoError(const Msg: string; Show: Boolean; Warn: Boolean);
-{$IFDEF _MINI_}var uType: Cardinal;{$ENDIF}
+{$IFDEF _MINI_}
+  {$if (not declared(EDllError)) and (not declared(Abort))}
+var uType: Cardinal;
+  {$ifend}
+{$ENDIF}
 begin
   {$IFDEF UNICODE}
   OutputDebugStringW(PWideChar(UnicodeString('ERROR: TDll: ' + Msg)));
@@ -793,20 +878,23 @@ begin
   {$ELSE  _MINI_}
   if Show then
   begin
-    uType := MB_OK;
-    if Warn
-    then uType := uType or MB_ICONWARNING
-    else uType := uType or MB_ICONERROR;
-    {$IFDEF UNICODE}
-    MessageBoxW(0, PWideChar(UnicodeString(Msg)), nil, uType);
-    {$ELSE}
-    MessageBoxA(0, PAnsiChar(AnsiString(Msg)), }nil, MB_ICONERROR);
-    {$ENDIF}
-    {$if declared(Abort)}
-    //--raise EDllError.Create(Msg);
-    Abort;
+    {$if declared(EDllError)}
+    raise EDllError.Create(Msg);
     {$else}
-    Halt(1);
+      {$if declared(Abort)}
+      Abort;
+      {$else}
+      uType := MB_OK;
+      if Warn
+      then uType := uType or MB_ICONWARNING
+      else uType := uType or MB_ICONERROR;
+      {$IFDEF UNICODE}
+      MessageBoxW(0, PWideChar(UnicodeString(Msg)), nil, uType);
+      {$ELSE}
+      MessageBoxA(0, PAnsiChar(AnsiString(Msg)),    nil, uType);
+      {$ENDIF}
+      Halt(1);
+      {$ifend}
     {$ifend}
   end;
   {$ENDIF _MINI_}
@@ -1011,7 +1099,7 @@ begin
           TDll.DoError('"'+FShortName+'": "'+FEntries[i].EName+'" - Failed wrapper memory accessible', {Show:}False, {Warn:}False);
           OK := Dlls.CodeHeap.SetMemWritable(Pointer(E^.EProc), SizeOf(Pointer));
           if OK then
-            TDll.Warning('"'+FShortName+'": "'+FEntries[i].EName+'" - Fixed memory attribute');
+            TDll.Warning('"'+FShortName+'": "'+FEntries[i].EName+'" - Fixed memory attributes');
         end;
         if OK then begin
           try
