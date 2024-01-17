@@ -64,7 +64,7 @@ unit libssh2;
 {$UNDEF _TEST_LIBSSH2_} { no change }
 //#TEST:
 {$if defined(_IDE_) and defined(_DEBUG_) and defined(_TEST_)}
-  {$DEFINE _TEST_LIBSSH2_} //# optional: testing wrapper for "test_libssh2_session_init_ex"
+  {$DEFINE _TEST_LIBSSH2_} //# optional: testing some wrappers for "test_libssh2_*"
 {$ifend}
 //#TEST.
 
@@ -85,7 +85,7 @@ interface
 
 uses
   {$IFDEF allow_hvdll}
-  HVDll, //# alternative for: external '%dll_name%' name '%function_name%' delayed;
+  HVDll, //# alternative for: external '%dll_name%' name '%function_name%' delayed
   {$ENDIF}
   {$IFDEF MSWINDOWS}
     {$if defined(WIN32) or defined(WIN64)}
@@ -161,7 +161,7 @@ type
 
 const
   LIBSSH2_UNIT_VER = 202401141600;
-  //# format time  : yyyymmddhhnn #.
+  //# format time  : yyyymmddhhnn #
   {$EXTERNALSYM LIBSSH2_UNIT_VER}
   (*
   //# Sample for checking:
