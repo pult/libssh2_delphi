@@ -1,6 +1,6 @@
-{ HVHeaps.pas } //# version: 2024.0117.0600
+{ HVHeaps.pas } //# version: 2024.0123.1140
 unit HVHeaps;
-//#....
+//#
 //# https://github.com/pult/dll_load_delay
 //# https://bitbucket.org/VadimLV/dll_load_delay
 //# http://hallvards.blogspot.com/2008/03/tdm8-delayloading-of-dlls.html
@@ -49,15 +49,14 @@ interface
   {-WARN UNSAFE_TYPE OFF}
   {-WARN UNSAFE_CAST OFF}
 
-  {$IFDEF CONDITIONALEXPRESSIONS}
-    {$IF CompilerVersion >= 25.00} //# XE4_UP
+  {$ifdef allow_inline}
+    {$IFNDEF CONDITIONALEXPRESSIONS}
       {$undef allow_inline} { no change }
-    {$ELSE}
-    {$IFEND}
-  {$ELSE}
-    {$undef allow_inline} { no change }
-  {$ENDIF}
-
+    {$ENDIF}
+    {$IFNDEF UNICODE}
+      {$undef allow_inline} { no change }
+    {$ENDIF}
+  {$endif}
 {$ENDIF !FPC}
 
 uses
