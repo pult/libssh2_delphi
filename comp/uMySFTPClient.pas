@@ -2383,7 +2383,8 @@ begin
   begin
     FLibSSH2Initialized := False;
     ARefs := InterlockedDecrement(GSSH2Init);
-    if ARefs <= 0 then
+    // Do not call libssh2_exit here; call it once at finalization.
+    {if ARefs <= 0 then
     begin
       if FDebugMode then dbg('libssh2_exit:');
       try
@@ -2392,7 +2393,7 @@ begin
       except
         on e: Exception do ;
       end;
-    end;
+    end;}
   end;
   inherited;
 end;
@@ -3858,6 +3859,14 @@ initialization
   {$ifend}
 finalization
   WSDataFInit();
+  // Ensure libssh2 is exited once per process at shutdown only.
+  if GSSH2Init > 0 then
+  try
+    // Match process-level lifecycle: init once, exit once.
+    libssh2_exit();
+  except
+    on e: Exception do ;
+  end;
   {$if declared(uHVDll)}
   if Assigned(dll_ws2_32) then
     dll_ws2_32.Unload;
