@@ -39,6 +39,12 @@ uses
   libssh2, libssh2_sftp;
 
 const
+  {$IFDEF MSWINDOWS}
+   CRT = 'msvcrt.dll';
+  {$ELSE}
+   CRT = 'c';
+  {$ENDIF}
+
   AF_INET6 = 23;
   //#
   SFTPCLIENT_VERSION = 202401141600;
@@ -388,6 +394,9 @@ implementation
 
 uses
   DateUtils, Forms, StrUtils, WideStrUtils;
+
+
+function malloc(size: Cardinal): Pointer; cdecl; external CRT;
 
 function strwhen(const s: string; cond: Boolean): string; {$ifdef allow_inline}inline;{$endif}
 begin
@@ -1398,49 +1407,60 @@ var
     end;
   end;
 
-  procedure KbdInteractiveCallback(const Name: PAnsiChar; name_len: Integer;
-    const instruction: PAnsiChar; instruction_len: Integer; num_prompts: Integer;
-    const prompts: PLIBSSH2_USERAUTH_KBDINT_PROMPT;
-    var responses: LIBSSH2_USERAUTH_KBDINT_RESPONSE;
-      _abstract: Pointer); cdecl;
-  var
-    sPassword: string;
-    Data: PAbstractData;
-    SSH2Client: TSSH2Client;
+procedure KbdInteractiveCallback(const Name: PAnsiChar; name_len: Integer;
+  const instruction: PAnsiChar; instruction_len: Integer; num_prompts: Integer;
+  const prompts: PLIBSSH2_USERAUTH_KBDINT_PROMPT;
+  responses: PLIBSSH2_USERAUTH_KBDINT_RESPONSE;
+  _abstract: Pointer); cdecl;
+var
+  PP: PPointer;
+  Data: PAbstractData;
+  SSH2Client: TSSH2Client;
+  sPassword: string;
+  A: AnsiString;
+  Len: Integer;
+  P: PAnsiChar;
+  RespArr: PLIBSSH2_RESP_ARR;
+  i: Integer;
+begin
+  if (num_prompts <= 0) or (responses = nil) or (_abstract = nil) then Exit;
+
+  PP := PPointer(_abstract);
+  if (PP^ = nil) then Exit;
+
+  Data := PAbstractData(PP^);
+  if (Data = nil) or (Data.SelfPtr = nil) then Exit;
+
+  SSH2Client := TSSH2Client(Data.SelfPtr);
+
+  // Get Password
+  sPassword := SSH2Client.Password;
+  if Assigned(SSH2Client.FOnKeybInt) then
+    SSH2Client.FOnKeybInt(SSH2Client, sPassword);
+
+  // Connvert (8Bit)
+  A := AnsiString(sPassword);
+  Len := Length(A);
+
+  RespArr := PLIBSSH2_RESP_ARR(responses);
+
+  // Fill Function
+  for i := 0 to num_prompts - 1 do
   begin
-    if ADebugMode then log('KbdInteractiveCallback: #' + IntToStr(num_prompts)); //@dbg
-    if num_prompts = 1 then
-    try
-      // zato sto je abstract->void**
-      if (_abstract = nil) then Exit;
-      Data := PAbstractData(Pointer(_abstract)^);
-      if (Data = nil) then Exit;
+   // libssh2 frees the response buffers internally using free().
+   // Therefore the memory must be allocated using the C runtime allocator.
+   // Using Delphi-managed strings here causes heap corruption.
+    P := PAnsiChar(malloc(Len + 1));
+    if P = nil then Exit;
 
-      SSH2Client := TSSH2Client(Data.SelfPtr);
-      sPassword := SSH2Client.Password;
-      // TODO -o##jpluimers -cGeneral : if Password is assigned, then firs try that at least once before asking
-      if Assigned(SSH2Client.FOnKeybInt) then
-      begin
-        if ADebugMode then log('SSH2Client.OnKeybInt:'); //@dbg
-        SSH2Client.FOnKeybInt(Data.SelfPtr, sPassword);
-        if ADebugMode then log('SSH2Client.OnKeybInt.'); //@dbg
-      end;
+    if Len > 0 then
+      Move(PAnsiChar(A)^, P^, Len);
+    P[Len] := #0; 
 
-      if (sPassword <> '') and (Pos('password', LowerCase(string(prompts.Text))) > 0) then
-      begin
-        Data.sPassword := AnsiString(sPassword);
-        responses.text := PAnsiChar(Data.sPassword);
-        responses.length := Length(Data.sPassword);
-      end;
-    except
-      on e: Exception do
-      begin
-        //if FDebugMode then
-        dbg('exception: ' + e.Message);
-      end;
-    end; // if num_prompts = 1 then
-    if ADebugMode then log('KbdInteractiveCallback.'); //@dbg
+    RespArr^[i].text := P;
+    RespArr^[i].length := Len;
   end;
+end;
 
   function UserAuthKeyboardInteractive(): Boolean;
   var

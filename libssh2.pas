@@ -295,6 +295,11 @@ type
   end;
   LIBSSH2_USERAUTH_KBDINT_RESPONSE = _LIBSSH2_USERAUTH_KBDINT_RESPONSE;
 
+  PLIBSSH2_USERAUTH_KBDINT_RESPONSE = ^LIBSSH2_USERAUTH_KBDINT_RESPONSE;
+
+  TLIBSSH2_RESP_ARR = array[0..0] of LIBSSH2_USERAUTH_KBDINT_RESPONSE;
+  PLIBSSH2_RESP_ARR = ^TLIBSSH2_RESP_ARR;
+
   _LIBSSH2_SK_SIG_INFO = record
     flags: Byte;
     counter: UInt;
@@ -318,7 +323,7 @@ type
                 instruction_len: Integer;
                 num_prompts: Integer;
                 const prompts: PLIBSSH2_USERAUTH_KBDINT_PROMPT;
-                var responses: LIBSSH2_USERAUTH_KBDINT_RESPONSE;
+                responses: PLIBSSH2_USERAUTH_KBDINT_RESPONSE;
                 abstract: Pointer); cdecl;
 
 {+// SK authentication callback */ }
