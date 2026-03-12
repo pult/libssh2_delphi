@@ -30,6 +30,12 @@ uses
   {$ELSE}
   Wintypes, WinProcs,
   {$ENDIF}
+  {$IFDEF MSWINDOWS}
+  {$ELSE}
+    {$IFDEF POSIX}
+      Posix.Stdlib, // malloc, strdup
+    {$ENDIF POSIX}
+  {$ENDIF}
   Classes, SysUtils,
   WinSock,
   //-{$IFDEF MSWINDOWS}
@@ -385,10 +391,44 @@ function FromOctal(const S: string): Cardinal;
 function EncodeStr(const WS: UnicodeString; ACodePage: Word = CP_UTF8): AnsiString;
 function DecodeStr(const S: AnsiString; ACodePage: Word = CP_UTF8): UnicodeString;
 
+{$IFDEF MSWINDOWS}
+function StrDupA(lpSrch: LPCSTR): LPSTR; stdcall;
+{$EXTERNALSYM StrDupA}
+{$ELSE}
+  {$IFDEF POSIX}
+    function StrDupA(lpSrch: PAnsiChar): PAnsiChar;
+  {$ENDIF POSIX}
+{$ENDIF}
+
 implementation
 
 uses
   DateUtils, Forms, StrUtils, WideStrUtils;
+
+(**
+  * strdup
+  *
+  char *strdup(const char *str)
+  {
+      size_t len = strlen(str)+1;
+      char *r = malloc(len);
+      if(r)
+        return memcpy(r, str, len);
+      else
+        errno = ENOMEM;
+      return NULL;
+  }
+*)
+{$IFDEF MSWINDOWS}
+function StrDupA; external 'shlwapi.dll' name 'StrDupA' {$ifdef allow_delayed} delayed{$endif};
+{$ELSE}
+  {$IFDEF POSIX}
+    function StrDupA(lpSrch: PAnsiChar): PAnsiChar;
+    begin
+      Result := strdup(lpSrch);
+    end;
+  {$ENDIF POSIX}
+{$ENDIF}
 
 function strwhen(const s: string; cond: Boolean): string; {$ifdef allow_inline}inline;{$endif}
 begin
@@ -1402,36 +1442,50 @@ var
   procedure KbdInteractiveCallback(const Name: PAnsiChar; name_len: Integer;
     const instruction: PAnsiChar; instruction_len: Integer; num_prompts: Integer;
     const prompts: PLIBSSH2_USERAUTH_KBDINT_PROMPT;
-    var responses: LIBSSH2_USERAUTH_KBDINT_RESPONSE;
-      _abstract: Pointer); cdecl;
+    responses: PLIBSSH2_USERAUTH_KBDINT_RESPONSE;
+    _abstract: Pointer); cdecl;
   var
-    sPassword: string;
+    sPassword: string; aPassword: AnsiString;
     Data: PAbstractData;
     SSH2Client: TSSH2Client;
+    RespArr: PLIBSSH2_RESP_ARR;
+    i, lPassword: Integer;
   begin
     if ADebugMode then log('KbdInteractiveCallback: #' + IntToStr(num_prompts)); //@dbg
-    if num_prompts = 1 then
+
+    if (num_prompts <= 0) or (responses = nil) or (_abstract = nil)
+      or (PPointer(_abstract)^ = nil)
+    then Exit;
+
+    Data := PAbstractData(PPointer(_abstract)^);
+    if (Data.SelfPtr = nil)
+    then Exit;
+
+    SSH2Client := TSSH2Client(Data.SelfPtr);
+    sPassword := SSH2Client.Password;
+
+    if Assigned(SSH2Client.FOnKeybInt) then
+    begin
+      if ADebugMode then log('SSH2Client.OnKeybInt:'); //@dbg
+      SSH2Client.FOnKeybInt(Data.SelfPtr, sPassword);
+      if ADebugMode then log('SSH2Client.OnKeybInt.'); //@dbg
+    end;
+
+    aPassword := AnsiString(sPassword);
+    Data.sPassword := aPassword;
+    lPassword := Length(aPassword);
+
     try
-      // zato sto je abstract->void**
-      if (_abstract = nil) then Exit;
-      Data := PAbstractData(Pointer(_abstract)^);
-      if (Data = nil) then Exit;
-
-      SSH2Client := TSSH2Client(Data.SelfPtr);
-      sPassword := SSH2Client.Password;
-      // TODO -o##jpluimers -cGeneral : if Password is assigned, then firs try that at least once before asking
-      if Assigned(SSH2Client.FOnKeybInt) then
+      RespArr := PLIBSSH2_RESP_ARR(responses);
+      for i := 0 to num_prompts - 1 do
       begin
-        if ADebugMode then log('SSH2Client.OnKeybInt:'); //@dbg
-        SSH2Client.FOnKeybInt(Data.SelfPtr, sPassword);
-        if ADebugMode then log('SSH2Client.OnKeybInt.'); //@dbg
-      end;
-
-      if (sPassword <> '') and (Pos('password', LowerCase(string(prompts.Text))) > 0) then
-      begin
-        Data.sPassword := AnsiString(sPassword);
-        responses.text := PAnsiChar(Data.sPassword);
-        responses.length := Length(Data.sPassword);
+        // libssh2 frees the response buffers internally using free().
+        // Therefore the memory must be allocated using the C runtime allocator.
+        // Using Delphi-managed strings here causes heap corruption.
+        if lPassword > 0
+        then RespArr^[i].text := StrDupA(PAnsiChar(aPassword))
+        else RespArr^[i].text := nil;
+        RespArr^[i].length := lPassword;
       end;
     except
       on e: Exception do
@@ -1439,7 +1493,7 @@ var
         //if FDebugMode then
         dbg('exception: ' + e.Message);
       end;
-    end; // if num_prompts = 1 then
+    end;
     if ADebugMode then log('KbdInteractiveCallback.'); //@dbg
   end;
 
@@ -2265,7 +2319,7 @@ begin
     SetLength(ABuf, ABufLen+1);
     ABuf[1] := #0; ABuf[ABufLen+1] := #0;
 
-    R := 0; if R <> 0 then ; iEAGAIN := 0;
+    R := 0; if R <> 0 then ; iEAGAIN := 0; if iEAGAIN > 0 then;
     tc := GetTickCount; //td := 0;
     //-while {(not fCancelled) and} {(R <= 0) and} ((td <= AMillisecondsTimeout) or (timeout_tv_sec < 0)) do
     while True do
@@ -2383,7 +2437,7 @@ begin
   if FLibSSH2Initialized then
   begin
     FLibSSH2Initialized := False;
-    ARefs := InterlockedDecrement(GSSH2Init);
+    ARefs := InterlockedDecrement(GSSH2Init); if ARefs = 0 then ;
     // Do not call libssh2_exit here; call it once at finalization.
     {if ARefs <= 0 then
     begin
@@ -2515,48 +2569,50 @@ end;
 
 function TSSH2Client.ExecCommand(const ACmd: string; out AOutput: string): Boolean;
 var
- Channel: PLIBSSH2_CHANNEL;
- ABuf: AnsiString;
- BytesRead: Integer;
- Err: Integer;
+  Channel: PLIBSSH2_CHANNEL;
+  ABuf: AnsiString;
+  BytesRead: Integer;
+  Err: Integer;
 begin
- Result := False;
- AOutput := '';
+  Result := False;
+  AOutput := '';
+  if ACmd = '' then
+    Exit;
 
- if not Connected then
-   RaiseSSHError('Not connected');
+  if not Connected then
+    RaiseSSHError('Not connected');
 
- Channel := libssh2_channel_open_session(Session);
- if Channel = nil then
-   RaiseSSHError('Unable to open SSH channel');
+  Channel := libssh2_channel_open_session(Session);
+  if Channel = nil then
+    RaiseSSHError('Unable to open SSH channel');
 
- try
-  if fCodePage <> 0 then
-    ABuf := MyEncode(WideString(ACmd))
-  else
-    ABuf := AnsiString(ACmd);
-  Err := libssh2_channel_exec(Channel, PAnsiChar(ABuf));
-  if Err <> 0 then
-    RaiseSSHError('channel_exec failed', Err);
+  try
+   if fCodePage <> 0 then
+     ABuf := MyEncode(WideString(ACmd))
+   else
+     ABuf := AnsiString(ACmd);
+   Err := libssh2_channel_exec(Channel, PAnsiChar(ABuf));
+   if Err <> 0 then
+     RaiseSSHError('channel_exec failed', Err);
 
-  SetLength(ABuf,4096);
-  repeat
-    //ABuf[1] := #0;
-    BytesRead := libssh2_channel_read(Channel, PAnsiChar(ABuf), Length(ABuf));
-    if (BytesRead > 0) {and (ABuf[1] <> #0)} then
-    begin
-      if BytesRead > Length(ABuf) then
-        BytesRead := Length(ABuf);
-      AOutput := AOutput + string(AnsiString(Copy(ABuf, 1, BytesRead)));
-    end;  
-  until BytesRead <= 0;
-  
-  Result := True;
+   SetLength(ABuf,4096);
+   repeat
+     //ABuf[1] := #0;
+     BytesRead := libssh2_channel_read(Channel, PAnsiChar(ABuf), Length(ABuf));
+     if (BytesRead > 0) {and (ABuf[1] <> #0)} then
+     begin
+       if BytesRead > Length(ABuf) then
+         BytesRead := Length(ABuf);
+       AOutput := AOutput + string(AnsiString(Copy(ABuf, 1, BytesRead)));
+     end;
+   until BytesRead <= 0;
 
- finally
-  libssh2_channel_close(Channel);
-  libssh2_channel_free(Channel);
- end;
+   Result := True;
+
+  finally
+    libssh2_channel_close(Channel);
+    libssh2_channel_free(Channel);
+  end;
 end;
 
 function TSSH2Client.GetSessionPtr: PLIBSSH2_SESSION;
