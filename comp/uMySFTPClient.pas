@@ -270,6 +270,7 @@ type
     function GetLastSSHError(E: Integer = 0): string; virtual;
     procedure Cancel(ADisconnect: Boolean = True); virtual;
     function GetSessionMethodsStr: string;
+    function ExecCommand(const ACmd: string; out AOutput: string): Boolean;
 
     property DebugMode: Boolean read FDebugMode write FDebugMode default False;
     property Host: string read FHost write FHost;
@@ -2510,6 +2511,42 @@ begin
     ]);
     //if FDebugMode then dbg('libssh2_session_freelibssh2_session_methods. R:'+Result);
   end;
+end;
+
+function TSSH2Client.ExecCommand(const ACmd: string; out AOutput: string): Boolean;
+var
+ Channel: PLIBSSH2_CHANNEL;
+ Buf: array[0..4095] of AnsiChar;
+ BytesRead: Integer;
+ Err: Integer;
+begin
+ Result := False;
+ AOutput := '';
+
+ if not Connected then
+   RaiseSSHError('Not connected');
+
+ Channel := libssh2_channel_open_session(Session);
+ if Channel = nil then
+   RaiseSSHError('Unable to open SSH channel');
+
+ try
+  Err := libssh2_channel_exec(Channel, PAnsiChar(AnsiString(ACmd)));
+  if Err <> 0 then
+    RaiseSSHError('channel_exec failed', Err);
+
+  repeat
+    BytesRead := libssh2_channel_read(Channel, @Buf[0], SizeOf(Buf));
+    if BytesRead > 0 then
+      AOutput := AOutput + string(AnsiString(Copy(Buf, 0, BytesRead)));
+  until BytesRead <= 0;
+
+  Result := True;
+
+ finally
+  libssh2_channel_close(Channel);
+  libssh2_channel_free(Channel);
+ end;
 end;
 
 function TSSH2Client.GetSessionPtr: PLIBSSH2_SESSION;
