@@ -47,7 +47,7 @@ uses
 const
   AF_INET6 = 23;
   //#
-  SFTPCLIENT_VERSION = 202401141600;
+  SFTPCLIENT_VERSION = 202603120000;
   //# version format : yyyymmddhhnn.
   {$EXTERNALSYM SFTPCLIENT_VERSION}
   (*
