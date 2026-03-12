@@ -160,7 +160,7 @@ type
   TLibssh2Socket = libssh2_socket_t;
 
 const
-  LIBSSH2_UNIT_VER = 202401141600;
+  LIBSSH2_UNIT_VER = 202603120000;
   //# format time  : yyyymmddhhnn #
   {$EXTERNALSYM LIBSSH2_UNIT_VER}
   (*
