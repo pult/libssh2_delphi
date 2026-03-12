@@ -1,4 +1,4 @@
-{ uMySFTPClient.pas } //# version: 2024.0114.1600
+{ uMySFTPClient.pas } //# version: 2026.0312.0000
 { **
   *  Copyright (c) 2010, Zeljko Marjanovic <savethem4ever@gmail.com>
   *  This code is licensed under MPL 1.1
@@ -2516,7 +2516,7 @@ end;
 function TSSH2Client.ExecCommand(const ACmd: string; out AOutput: string): Boolean;
 var
  Channel: PLIBSSH2_CHANNEL;
- Buf: array[0..4095] of AnsiChar;
+ ABuf: AnsiString;
  BytesRead: Integer;
  Err: Integer;
 begin
@@ -2531,16 +2531,26 @@ begin
    RaiseSSHError('Unable to open SSH channel');
 
  try
-  Err := libssh2_channel_exec(Channel, PAnsiChar(AnsiString(ACmd)));
+  if fCodePage <> 0 then
+    ABuf := MyEncode(WideString(ACmd))
+  else
+    ABuf := AnsiString(ACmd);
+  Err := libssh2_channel_exec(Channel, PAnsiChar(ABuf));
   if Err <> 0 then
     RaiseSSHError('channel_exec failed', Err);
 
+  SetLength(ABuf,4096);
   repeat
-    BytesRead := libssh2_channel_read(Channel, @Buf[0], SizeOf(Buf));
-    if BytesRead > 0 then
-      AOutput := AOutput + string(AnsiString(Copy(Buf, 0, BytesRead)));
+    //ABuf[1] := #0;
+    BytesRead := libssh2_channel_read(Channel, PAnsiChar(ABuf), Length(ABuf));
+    if (BytesRead > 0) {and (ABuf[1] <> #0)} then
+    begin
+      if BytesRead > Length(ABuf) then
+        BytesRead := Length(ABuf);
+      AOutput := AOutput + string(AnsiString(Copy(ABuf, 1, BytesRead)));
+    end;  
   until BytesRead <= 0;
-
+  
   Result := True;
 
  finally
