@@ -1,4 +1,4 @@
-{ uMySFTPClient.pas } //# version: 2026.0312.0000
+{ uMySFTPClient.pas } //# version: 2026.0314.0000
 { **
   *  Copyright (c) 2010, Zeljko Marjanovic <savethem4ever@gmail.com>
   *  This code is licensed under MPL 1.1
@@ -47,7 +47,7 @@ uses
 const
   AF_INET6 = 23;
   //#
-  SFTPCLIENT_VERSION = 202603120000;
+  SFTPCLIENT_VERSION = 202603140000;
   //# version format : yyyymmddhhnn.
   {$EXTERNALSYM SFTPCLIENT_VERSION}
   (*
@@ -392,7 +392,14 @@ function EncodeStr(const WS: UnicodeString; ACodePage: Word = CP_UTF8): AnsiStri
 function DecodeStr(const S: AnsiString; ACodePage: Word = CP_UTF8): UnicodeString;
 
 {$IFDEF MSWINDOWS}
-function StrDupA(lpSrch: LPCSTR): LPSTR; stdcall;
+function StrDupA(lpSrch: PAnsiChar): PAnsiChar;
+type
+  size_t = NativeUInt;
+function msvcrt_malloc(size: size_t): Pointer; cdecl;
+procedure msvcrt_free(p: Pointer); cdecl;
+function msvcrt_strlen(str: PAnsiChar): size_t; cdecl;
+function msvcrt_memcpy(dest: Pointer; const src: Pointer; count: size_t): Pointer; cdecl;
+function msvcrt_strcpy(dest: PAnsiChar; const src: PAnsiChar): PAnsiChar; cdecl;
 {$EXTERNALSYM StrDupA}
 {$ELSE}
   {$IFDEF POSIX}
@@ -403,37 +410,10 @@ function StrDupA(lpSrch: LPCSTR): LPSTR; stdcall;
 implementation
 
 uses
+  {$IFDEF MSWINDOWS}
+  AnsiStrings,
+  {$ENDIF}
   DateUtils, Forms, StrUtils, WideStrUtils;
-
-(**
-  * strdup
-  *
-  char *strdup(const char *str)
-  {
-      size_t len = strlen(str)+1;
-      char *r = malloc(len);
-      if(r)
-        return memcpy(r, str, len);
-      else
-        errno = ENOMEM;
-      return NULL;
-  }
-*)
-{$IFDEF MSWINDOWS}
-function StrDupA; external 'shlwapi.dll' name 'StrDupA' {$ifdef allow_delayed} delayed{$endif};
-{$ELSE}
-  {$IFDEF POSIX}
-    function StrDupA(lpSrch: PAnsiChar): PAnsiChar;
-    begin
-      Result := strdup(lpSrch);
-    end;
-  {$ENDIF POSIX}
-{$ENDIF}
-
-function strwhen(const s: string; cond: Boolean): string; {$ifdef allow_inline}inline;{$endif}
-begin
-  if cond then Result := s else Result := '';
-end;
 
 procedure dbg(const S: string); {$ifdef allow_inline}inline;{$endif}
 begin
@@ -447,6 +427,63 @@ begin
   {$IFDEF MSWINDOWS}
   if Length(S) > 0 then OutputDebugStringW(PWideChar('libssh2:> ' + S));
   {$ENDIF}
+end;
+
+{$IFDEF MSWINDOWS}
+const
+  msvcrt_lib = 'msvcrt.dll';
+function msvcrt_malloc(size: size_t): Pointer; cdecl;
+  external msvcrt_lib name 'malloc' {$ifdef allow_delayed} delayed{$endif};
+procedure msvcrt_free(p: Pointer); cdecl;
+  external msvcrt_lib name 'free' {$ifdef allow_delayed} delayed{$endif};
+function msvcrt_strlen(str: PAnsiChar): size_t; cdecl;
+  external msvcrt_lib name 'strlen' {$ifdef allow_delayed} delayed{$endif};
+function msvcrt_memcpy(dest: Pointer; const src: Pointer; count: size_t): Pointer; cdecl;
+  external msvcrt_lib name 'memcpy' {$ifdef allow_delayed} delayed{$endif};
+function msvcrt_strcpy(dest: PAnsiChar; const src: PAnsiChar): PAnsiChar; cdecl;
+  external msvcrt_lib name 'strcpy' {$ifdef allow_delayed} delayed{$endif};
+function StrDupA(lpSrch: PAnsiChar): PAnsiChar;
+var
+  Len: Integer;
+begin
+  Result := nil;
+  if lpSrch = nil then
+    Exit;
+  //Len := AnsiStrings.StrLen(lpSrch);
+  Len := msvcrt_strlen(lpSrch);
+  if Len = 0 then
+    Exit;
+  Inc(Len); // + latest #0
+  Result := msvcrt_malloc(Len);
+  if Result = nil then
+    Exit;
+  //Move(lpSrch^, Result^, Len);
+  Result := msvcrt_memcpy(Result, lpSrch, Len);
+  //Result := msvcrt_strcpy(Result, lpSrch);
+end;
+{$IFDEF DEBUG}
+procedure test_link_msvcrt();
+var
+  p: PAnsiChar; S: AnsiString;
+begin
+  S := 'test_link_msvcrt';
+  p := StrDupA(PAnsiChar(S));
+  dbg('StrDupA: "'+string(AnsiString(p))+'"');
+  msvcrt_free(p);
+end;
+{$ENDIF DEBUG}
+{$ELSE}
+  {$IFDEF POSIX}
+    function StrDupA(lpSrch: PAnsiChar): PAnsiChar;
+    begin
+      Result := strdup(lpSrch);
+    end;
+  {$ENDIF POSIX}
+{$ENDIF}
+
+function strwhen(const s: string; cond: Boolean): string; {$ifdef allow_inline}inline;{$endif}
+begin
+  if cond then Result := s else Result := '';
 end;
 
 function bool2int(b: Boolean): Integer; {$ifdef allow_inline}inline;{$endif}
@@ -2017,7 +2054,7 @@ begin // procedure TSSH2Client.Connect:
 
       AuthOK := False;
       {$warnings off}
-      if ADebugMode then log('ParseAuthList: "' + string(StrPas(UserAuthList)) + '"'); // @dbg
+      if ADebugMode then log('ParseAuthList: "' + string({$IFDEF MSWINDOWS}AnsiStrings.{$ENDIF}StrPas(UserAuthList)) + '"'); // @dbg
       {$warnings on}
       AuthMode := ParseAuthList(UserAuthList);
       if ADebugMode then log('ParseAuthList.'); // @dbg
@@ -3960,6 +3997,12 @@ initialization
   dll_ws2_32 := TDll.Create(dll_ws2_32_name, dll_ws2_32_entires);
   //dll_ws2_32.Load(); // @dbg
   {$ifend}
+  //
+  {$IFDEF DEBUG}
+  {$IFDEF MSWINDOWS}
+  //test_link_msvcrt();
+  {$ENDIF}
+  {$ENDIF DEBUG}
 finalization
   WSDataFInit();
   // Ensure libssh2 is exited once per process at shutdown only.
