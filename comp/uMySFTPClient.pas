@@ -391,8 +391,8 @@ function FromOctal(const S: string): Cardinal;
 function EncodeStr(const WS: UnicodeString; ACodePage: Word = CP_UTF8): AnsiString;
 function DecodeStr(const S: AnsiString; ACodePage: Word = CP_UTF8): UnicodeString;
 
+function CRT_StrDupA(lpSrch: PAnsiChar): PAnsiChar;
 {$IFDEF MSWINDOWS}
-function StrDupA(lpSrch: PAnsiChar): PAnsiChar;
 type
   size_t = NativeUInt;
 function msvcrt_malloc(size: size_t): Pointer; cdecl;
@@ -400,11 +400,6 @@ procedure msvcrt_free(p: Pointer); cdecl;
 function msvcrt_strlen(str: PAnsiChar): size_t; cdecl;
 function msvcrt_memcpy(dest: Pointer; const src: Pointer; count: size_t): Pointer; cdecl;
 function msvcrt_strcpy(dest: PAnsiChar; const src: PAnsiChar): PAnsiChar; cdecl;
-{$EXTERNALSYM StrDupA}
-{$ELSE}
-  {$IFDEF POSIX}
-    function StrDupA(lpSrch: PAnsiChar): PAnsiChar;
-  {$ENDIF POSIX}
 {$ENDIF}
 
 implementation
@@ -442,7 +437,9 @@ function msvcrt_memcpy(dest: Pointer; const src: Pointer; count: size_t): Pointe
   external msvcrt_lib name 'memcpy' {$ifdef allow_delayed} delayed{$endif};
 function msvcrt_strcpy(dest: PAnsiChar; const src: PAnsiChar): PAnsiChar; cdecl;
   external msvcrt_lib name 'strcpy' {$ifdef allow_delayed} delayed{$endif};
-function StrDupA(lpSrch: PAnsiChar): PAnsiChar;
+{$ENDIF MSWINDOWS}
+function CRT_StrDupA(lpSrch: PAnsiChar): PAnsiChar;
+{$IFDEF MSWINDOWS}
 var
   Len: Integer;
 begin
@@ -461,25 +458,29 @@ begin
   Result := msvcrt_memcpy(Result, lpSrch, Len);
   //Result := msvcrt_strcpy(Result, lpSrch);
 end;
+{$ELSE}
+begin
+  {$IFDEF POSIX}
+  Result := Posix.Stdlib.strdup(lpSrch);
+  {$ELSE}
+  Result := PAnsiChar(AnsiString(lpSrch));
+  {$ENDIF POSIX}
+end;
+{$ENDIF}
+
 {$IFDEF DEBUG}
+{$IFDEF MSWINDOWS}
 procedure test_link_msvcrt();
 var
   p: PAnsiChar; S: AnsiString;
 begin
   S := 'test_link_msvcrt';
-  p := StrDupA(PAnsiChar(S));
-  dbg('StrDupA: "'+string(AnsiString(p))+'"');
+  p := CRT_StrDupA(PAnsiChar(S));
+  dbg('CRT_StrDupA: "'+string(AnsiString(p))+'"');
   msvcrt_free(p);
 end;
+{$ENDIF MSWINDOWS}
 {$ENDIF DEBUG}
-{$ELSE}
-  {$IFDEF POSIX}
-    function StrDupA(lpSrch: PAnsiChar): PAnsiChar;
-    begin
-      Result := strdup(lpSrch);
-    end;
-  {$ENDIF POSIX}
-{$ENDIF}
 
 function strwhen(const s: string; cond: Boolean): string; {$ifdef allow_inline}inline;{$endif}
 begin
@@ -1520,7 +1521,7 @@ var
         // Therefore the memory must be allocated using the C runtime allocator.
         // Using Delphi-managed strings here causes heap corruption.
         if lPassword > 0
-        then RespArr^[i].text := StrDupA(PAnsiChar(aPassword))
+        then RespArr^[i].text := CRT_StrDupA(PAnsiChar(aPassword))
         else RespArr^[i].text := nil;
         RespArr^[i].length := lPassword;
       end;
